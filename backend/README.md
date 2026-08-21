@@ -21,10 +21,15 @@ Module**, a real **Predictive Analytics Module**, and a first cut of the
    "Why tree reads, not diff replay" below).
 4. Computes, per file, using only commits at or before the cutoff:
    process metrics (churn, commit count, author count, prior bug-fix count,
-   age, recency) and static metrics (LOC, cyclomatic complexity,
-   maintainability index, Halstead volume/difficulty) on the file's content
-   snapshot *as of the cutoff* (`evomind/metrics/code_metrics.py`, via
-   [radon](https://radon.readthedocs.io/)).
+   age, recency) and static metrics (LOC, cyclomatic complexity, function
+   count) on the file's content snapshot *as of the cutoff*
+   (`evomind/metrics/code_metrics.py`). Python files get the fuller
+   [radon](https://radon.readthedocs.io/)-based analysis (adds maintainability
+   index and Halstead metrics, since it parses a real AST); every other
+   language [lizard](https://github.com/terryyin/lizard) supports — JS/TS,
+   Java, Go, Ruby, C/C++, C#, PHP, Rust, Kotlin, Swift, and more — gets
+   complexity/LOC via its tokenizer, with maintainability index and Halstead
+   metrics explicitly defaulted to 0.0 rather than guessed.
 5. Labels each file `is_bug_prone = 1` if a bug-fixing commit (keyword
    heuristic on commit messages — see `BUG_KEYWORDS` in `git_miner.py`)
    touches it strictly *after* the cutoff, within `horizon_days`.
@@ -33,11 +38,14 @@ Module**, a real **Predictive Analytics Module**, and a first cut of the
    recall, F1, ROC-AUC, and average precision.
 7. Re-scores the repo's *current* files (latest snapshot) with the trained
    model to produce a live risk ranking.
-8. Parses every current file's imports with the stdlib `ast` module and
-   builds an intra-repo dependency graph (`evomind/architecture/dependency_graph.py`),
-   computing afferent/efferent coupling, instability, and circular-dependency
-   groups (via Tarjan's SCC algorithm) — external/stdlib imports are dropped
-   since they never resolve to an internal file.
+8. Parses every current **Python** file's imports with the stdlib `ast`
+   module and builds an intra-repo dependency graph
+   (`evomind/architecture/dependency_graph.py`), computing afferent/efferent
+   coupling, instability, and circular-dependency groups (via Tarjan's SCC
+   algorithm) — external/stdlib imports are dropped since they never resolve
+   to an internal file. Non-Python files are skipped for this step only (see
+   limitations); a non-Python repo shows an empty coupling panel rather than
+   an error.
 9. On request (dashboard button, or `POST /recommend`), sends one risky
    file's metrics + source excerpt to Claude (`evomind/llm/recommend.py`)
    and returns a structured summary + prioritized refactoring suggestions.
@@ -126,9 +134,14 @@ will make all of them slower, not just share the wait.
 
 ## Known limitations (be upfront about these in the defense — it reads as rigor, not weakness)
 
-- **Python-only.** `code_metrics.py` uses `radon`, which only parses Python.
-  Multi-language support (the "graph-based software analysis" module in the
-  proposal) is not yet built.
+- **Dependency graph / coupling analysis is Python-only.** Bug-proneness
+  prediction (the core pipeline) works on any language lizard supports —
+  validated end-to-end on real JS/TS repos (e.g. axios) with zero Python
+  files. But the architectural coupling panel only ever analyzes `.py`
+  imports; a non-Python repo shows an empty coupling table by design, not a
+  broken one. Extending it to more languages means implementing each one's
+  own import/require syntax, which is a much bigger lift than swapping the
+  complexity analyzer was.
 - **Keyword-based bug labeling**, not a true SZZ implementation tracing
   bug-inducing commits via blame. This is the same simplification used in
   several cited papers' early baselines — call it out explicitly rather than
@@ -140,8 +153,7 @@ will make all of them slower, not just share the wait.
   `dependency_graph.py` strips a leading `src/`/`lib/` container dir, tries
   progressively shorter dotted-path prefixes). Works well for standard
   layouts; unconventional package structures may under- or over-resolve
-  edges. Only `.py` files are considered — matches the rest of the pipeline's
-  Python-only scope.
+  edges.
 - `/recommend` caches only the *single most recent* `/analyze` result
   in-memory (by design — this is a one-demo-at-a-time tool, not a
   multi-tenant service). Analyzing a second repo evicts the first.

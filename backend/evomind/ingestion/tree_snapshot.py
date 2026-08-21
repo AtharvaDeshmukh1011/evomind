@@ -22,6 +22,8 @@ import subprocess
 import tarfile
 from datetime import datetime
 
+from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
+
 
 def commit_at_or_before(repo_path: str, cutoff: datetime, ref: str = "HEAD") -> str | None:
     """The hash of the latest commit at or before `cutoff`, on `ref`'s ancestry."""
@@ -37,7 +39,7 @@ def commit_at_or_before(repo_path: str, cutoff: datetime, ref: str = "HEAD") -> 
 def read_files_at_commit(
     repo_path: str,
     commit_hash: str,
-    only_source_exts: tuple[str, ...] = (".py",),
+    only_source_exts: tuple[str, ...] = SUPPORTED_EXTENSIONS,
 ) -> dict[str, str]:
     """Reads every matching file's exact content at `commit_hash`, via `git archive`.
 

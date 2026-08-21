@@ -89,12 +89,17 @@ class DependencyGraph:
 
 def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
     """Builds a graph of import edges restricted to files present in `snapshots`."""
-    module_to_file = {_path_to_module(path): path for path in snapshots if _path_to_module(path)}
+    # Python-only: other languages mined alongside .py files (see
+    # SUPPORTED_EXTENSIONS in code_metrics.py) are excluded here rather than
+    # AST-parsed as if they were Python source.
+    py_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".py")}
+
+    module_to_file = {_path_to_module(path): path for path in py_snapshots if _path_to_module(path)}
     module_names = set(module_to_file)
 
-    graph = DependencyGraph(files=list(snapshots))
+    graph = DependencyGraph(files=list(py_snapshots))
 
-    for file_path, source in snapshots.items():
+    for file_path, source in py_snapshots.items():
         current_module = _path_to_module(file_path)
         imported = _extract_imported_modules(source, current_module)
 

@@ -16,6 +16,8 @@ from datetime import datetime
 
 from pydriller import Repository
 
+from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
+
 # Keyword heuristic for identifying bug-fixing commits, following the
 # widely used approach from Kim et al. and later defect-prediction studies
 # (e.g. the SZZ-style labeling referenced in Malhotra & Khanna, 2022).
@@ -50,7 +52,7 @@ def mine_repository(
     repo_path_or_url: str,
     since: datetime | None = None,
     to: datetime | None = None,
-    only_source_exts: tuple[str, ...] = (".py",),
+    only_source_exts: tuple[str, ...] = SUPPORTED_EXTENSIONS,
 ) -> MinedRepository:
     """Walks commit history and records per-file change events.
 

@@ -1,16 +1,25 @@
-"""Intra-repo Python dependency graph, coupling metrics, and cycle detection.
+"""Intra-repo dependency graph, coupling metrics, and cycle detection.
 
-Imports are parsed with the stdlib `ast` module and resolved to file paths
-purely within the mined snapshot — stdlib and third-party imports never
-match an internal module name, so they're silently dropped rather than
-producing external nodes. This keeps the graph scoped to "what this repo's
-own files depend on," which is what coupling/cycle analysis actually needs.
+Python imports are parsed with the stdlib `ast` module and resolved to
+dotted module names. JS/TS imports are extracted with a regex (a full parser
+is out of scope) and resolved as relative file paths, the way Node/bundler
+resolution actually works. Both resolve purely within the mined snapshot —
+external packages and stdlib imports never match an internal file, so
+they're silently dropped rather than producing external nodes. This keeps
+the graph scoped to "what this repo's own files depend on," which is what
+coupling/cycle analysis actually needs. Other languages are not yet
+supported; their files are simply excluded from the graph.
 """
 
 from __future__ import annotations
 
 import ast
+import os
+import posixpath
+import re
 from dataclasses import dataclass, field
+
+JS_TS_EXTENSIONS = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
 
 
 def _path_to_module(file_path: str) -> str:
@@ -75,6 +84,49 @@ def _extract_imported_modules(source: str, current_module: str) -> set[str]:
     return modules
 
 
+# Covers the common ES module and CommonJS forms: `import x from '...'`,
+# `import {x} from '...'`, `export {x} from '...'`, `export * from '...'`,
+# `require('...')`, and dynamic `import('...')`. Not a real parser — misses
+# unusual formatting (e.g. a specifier split across lines) and can't
+# distinguish a real import from a look-alike inside a string/comment, the
+# same class of tradeoff as the bug-fix keyword heuristic elsewhere.
+_JS_IMPORT_PATTERN = re.compile(
+    r"""(?:\bfrom\s+|\brequire\(\s*|\bimport\(\s*)['"]([^'"]+)['"]"""
+)
+_JS_SIDE_EFFECT_IMPORT_PATTERN = re.compile(r"""^\s*import\s+['"]([^'"]+)['"]""", re.MULTILINE)
+
+
+def _extract_js_imports(source: str) -> set[str]:
+    specifiers = set(_JS_IMPORT_PATTERN.findall(source))
+    specifiers.update(_JS_SIDE_EFFECT_IMPORT_PATTERN.findall(source))
+    return specifiers
+
+
+def _resolve_js_import(current_file: str, specifier: str, path_lookup: dict[str, str]) -> str | None:
+    """Resolves an import specifier the way Node/bundler resolution does:
+    relative to the importing file's directory, trying each supported
+    extension and an `index.*` fallback for directory imports.
+
+    `path_lookup` maps forward-slash-normalized paths (specifiers are always
+    forward-slash, regardless of host OS) to the snapshot's original key.
+    """
+    if not specifier.startswith("."):
+        return None  # bare specifier — an external package (node_modules), not an internal file
+
+    current_dir = posixpath.dirname(current_file.replace(os.sep, "/"))
+    resolved_base = posixpath.normpath(posixpath.join(current_dir, specifier))
+
+    candidates = [resolved_base]
+    if not resolved_base.endswith(JS_TS_EXTENSIONS):
+        candidates += [resolved_base + ext for ext in JS_TS_EXTENSIONS]
+        candidates += [f"{resolved_base}/index{ext}" for ext in JS_TS_EXTENSIONS]
+
+    for candidate in candidates:
+        if candidate in path_lookup:
+            return path_lookup[candidate]
+    return None
+
+
 @dataclass
 class ImportEdge:
     source: str  # importing file
@@ -87,18 +139,11 @@ class DependencyGraph:
     edges: list[ImportEdge] = field(default_factory=list)
 
 
-def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
-    """Builds a graph of import edges restricted to files present in `snapshots`."""
-    # Python-only: other languages mined alongside .py files (see
-    # SUPPORTED_EXTENSIONS in code_metrics.py) are excluded here rather than
-    # AST-parsed as if they were Python source.
-    py_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".py")}
-
+def _build_python_edges(py_snapshots: dict[str, str]) -> list[ImportEdge]:
     module_to_file = {_path_to_module(path): path for path in py_snapshots if _path_to_module(path)}
     module_names = set(module_to_file)
 
-    graph = DependencyGraph(files=list(py_snapshots))
-
+    edges: list[ImportEdge] = []
     for file_path, source in py_snapshots.items():
         current_module = _path_to_module(file_path)
         imported = _extract_imported_modules(source, current_module)
@@ -112,9 +157,39 @@ def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
                     break
                 candidate = _package_of(candidate)
 
-        for target_file in matched_targets:
-            graph.edges.append(ImportEdge(source=file_path, target=target_file))
+        edges.extend(ImportEdge(source=file_path, target=t) for t in matched_targets)
+    return edges
 
+
+def _build_js_edges(js_snapshots: dict[str, str]) -> list[ImportEdge]:
+    path_lookup = {path.replace(os.sep, "/"): path for path in js_snapshots}
+
+    edges: list[ImportEdge] = []
+    for file_path, source in js_snapshots.items():
+        matched_targets: set[str] = set()
+        for spec in _extract_js_imports(source):
+            target = _resolve_js_import(file_path, spec, path_lookup)
+            if target and target != file_path:
+                matched_targets.add(target)
+
+        edges.extend(ImportEdge(source=file_path, target=t) for t in matched_targets)
+    return edges
+
+
+def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
+    """Builds a graph of import edges restricted to files present in `snapshots`.
+
+    Python and JS/TS files are each resolved with their own logic (dotted
+    module names vs. relative file paths) into one unified graph. Files in
+    languages this module doesn't yet parse are excluded entirely — not
+    listed as isolated nodes, since we never actually looked at their
+    imports.
+    """
+    py_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".py")}
+    js_snapshots = {path: src for path, src in snapshots.items() if path.endswith(JS_TS_EXTENSIONS)}
+
+    graph = DependencyGraph(files=[*py_snapshots, *js_snapshots])
+    graph.edges = _build_python_edges(py_snapshots) + _build_js_edges(js_snapshots)
     return graph
 
 

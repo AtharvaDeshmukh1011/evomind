@@ -99,3 +99,114 @@ def test_no_cycle_in_linear_chain():
     }
     graph = build_dependency_graph(snapshots)
     assert find_cyclic_groups(graph) == []
+
+
+# --- JS/TS ---
+
+
+def test_js_relative_import_with_extension_resolves():
+    snapshots = {
+        "src/a.js": "import b from './b';\n",
+        "src/b.js": "export default 1;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/b.js") in edges
+
+
+def test_js_named_import_resolves():
+    snapshots = {
+        "src/a.js": "import { thing } from './b';\n",
+        "src/b.js": "export const thing = 1;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/b.js") in edges
+
+
+def test_js_require_resolves():
+    snapshots = {
+        "src/a.js": "const b = require('./b');\n",
+        "src/b.js": "module.exports = 1;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/b.js") in edges
+
+
+def test_js_dynamic_import_resolves():
+    snapshots = {
+        "src/a.js": "const b = await import('./b');\n",
+        "src/b.js": "export default 1;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/b.js") in edges
+
+
+def test_js_side_effect_import_resolves():
+    snapshots = {
+        "src/a.js": "import './polyfill';\n",
+        "src/polyfill.js": "window.x = 1;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/polyfill.js") in edges
+
+
+def test_js_index_file_resolves():
+    snapshots = {
+        "src/a.js": "import utils from './utils';\n",
+        "src/utils/index.js": "export default {};\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/utils/index.js") in edges
+
+
+def test_ts_extension_resolves_across_ts_and_tsx():
+    snapshots = {
+        "src/a.ts": "import Component from './Component';\n",
+        "src/Component.tsx": "export default () => null;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.ts", "src/Component.tsx") in edges
+
+
+def test_js_parent_directory_import_resolves():
+    snapshots = {
+        "src/nested/a.js": "import b from '../b';\n",
+        "src/b.js": "export default 1;\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/nested/a.js", "src/b.js") in edges
+
+
+def test_js_bare_specifier_produces_no_edge():
+    # 'lodash' has no leading './' or '../' — it's an external package (node_modules).
+    snapshots = {"src/a.js": "import _ from 'lodash';\n"}
+    graph = build_dependency_graph(snapshots)
+    assert graph.edges == []
+
+
+def test_js_and_python_files_resolve_independently_in_same_graph():
+    snapshots = {
+        "src/a.js": "import b from './b';\n",
+        "src/b.js": "export default 1;\n",
+        "pkg/x.py": "import pkg.y\n",
+        "pkg/y.py": "z = 1\n",
+        "pkg/__init__.py": "",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/a.js", "src/b.js") in edges
+    assert ("pkg/x.py", "pkg/y.py") in edges
+
+
+def test_non_python_non_js_files_excluded_from_graph():
+    snapshots = {"main.go": "package main\n"}
+    graph = build_dependency_graph(snapshots)
+    assert graph.files == []
+    assert graph.edges == []

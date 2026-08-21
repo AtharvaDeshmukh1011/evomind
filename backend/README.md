@@ -38,14 +38,18 @@ Module**, a real **Predictive Analytics Module**, and a first cut of the
    recall, F1, ROC-AUC, and average precision.
 7. Re-scores the repo's *current* files (latest snapshot) with the trained
    model to produce a live risk ranking.
-8. Parses every current **Python** file's imports with the stdlib `ast`
-   module and builds an intra-repo dependency graph
-   (`evomind/architecture/dependency_graph.py`), computing afferent/efferent
-   coupling, instability, and circular-dependency groups (via Tarjan's SCC
-   algorithm) — external/stdlib imports are dropped since they never resolve
-   to an internal file. Non-Python files are skipped for this step only (see
-   limitations); a non-Python repo shows an empty coupling panel rather than
-   an error.
+8. Parses every current **Python and JS/TS** file's imports and builds an
+   intra-repo dependency graph (`evomind/architecture/dependency_graph.py`),
+   computing afferent/efferent coupling, instability, and circular-dependency
+   groups (via Tarjan's SCC algorithm). Python imports are parsed with the
+   stdlib `ast` module and resolved to dotted module names; JS/TS imports
+   (`import`/`export ... from`, `require()`, dynamic `import()`) are
+   extracted with a regex and resolved as relative file paths, the way
+   Node/bundler resolution actually works. Either way, external packages and
+   stdlib imports never match an internal file, so they're dropped rather
+   than producing external nodes. Other languages are skipped entirely for
+   this step (see limitations); such a repo shows an empty coupling panel
+   rather than an error.
 9. On request (dashboard button, or `POST /recommend`), sends one risky
    file's metrics + source excerpt to Claude (`evomind/llm/recommend.py`)
    and returns a structured summary + prioritized refactoring suggestions.
@@ -134,14 +138,21 @@ will make all of them slower, not just share the wait.
 
 ## Known limitations (be upfront about these in the defense — it reads as rigor, not weakness)
 
-- **Dependency graph / coupling analysis is Python-only.** Bug-proneness
-  prediction (the core pipeline) works on any language lizard supports —
-  validated end-to-end on real JS/TS repos (e.g. axios) with zero Python
-  files. But the architectural coupling panel only ever analyzes `.py`
-  imports; a non-Python repo shows an empty coupling table by design, not a
-  broken one. Extending it to more languages means implementing each one's
-  own import/require syntax, which is a much bigger lift than swapping the
-  complexity analyzer was.
+- **Dependency graph / coupling analysis covers Python and JS/TS only.**
+  Bug-proneness prediction (the core pipeline) works on any language lizard
+  supports — validated end-to-end on real JS/TS repos (e.g. axios) with zero
+  Python files, and the coupling panel now covers those too (also validated
+  on axios: 305 real edges, plausible high-coupling files like `lib/utils.js`
+  and `lib/core/AxiosError.js`). A repo in a third language (Go, Java, Rust,
+  ...) shows an empty coupling table by design, not a broken one — extending
+  further means implementing each additional language's own import/require
+  syntax and resolution rules.
+- **JS/TS import extraction is regex-based, not a real parser** (no
+  lightweight JS AST parser in the Python ecosystem without adding a Node.js
+  dependency). Covers the common `import`/`export ... from`, `require()`,
+  and dynamic `import()` forms; can miss unusual formatting or false-positive
+  on a look-alike string, the same class of tradeoff as the bug-fix keyword
+  heuristic below.
 - **Keyword-based bug labeling**, not a true SZZ implementation tracing
   bug-inducing commits via blame. This is the same simplification used in
   several cited papers' early baselines — call it out explicitly rather than

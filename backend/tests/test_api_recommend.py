@@ -4,6 +4,7 @@ import pandas as pd
 from fastapi.testclient import TestClient
 
 from evomind.api import main
+from evomind.architecture.dependency_graph import DependencyGraph
 from evomind.llm.recommend import FileRecommendation, RefactoringSuggestion
 from evomind.ml.train import FEATURE_COLUMNS
 from evomind.pipeline import PipelineResult
@@ -27,6 +28,9 @@ def _fake_pipeline_result() -> PipelineResult:
         file_risk_scores=pd.DataFrame([{"file_path": "app.py", "risk_score": 0.81}]),
         current_metrics=current_metrics,
         latest_snapshots={"app.py": "def handler():\n    pass\n"},
+        dependency_graph=DependencyGraph(),
+        coupling=[],
+        cyclic_groups=[],
     )
 
 

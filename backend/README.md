@@ -1,34 +1,60 @@
 # EvoMind — Backend MVP
 
 Predictive bug-proneness scoring from Git history and static code metrics,
-plus LLM-generated refactoring recommendations for the riskiest files.
-This is the first working slice of the full EvoMind proposal: it implements
-the **Version Control Analysis Module**, **Source Code Analysis Module**, a
-real **Predictive Analytics Module**, and a first cut of the **AI
-Recommendation Module**, end to end, on real repositories.
+architectural coupling/cycle analysis, and LLM-generated refactoring
+recommendations for the riskiest files. This is the first working slice of
+the full EvoMind proposal: it implements the **Version Control Analysis
+Module**, **Source Code Analysis Module**, **Software Architecture Analysis
+Module**, a real **Predictive Analytics Module**, and a first cut of the
+**AI Recommendation Module**, end to end, on real repositories.
 
 ## What it actually does
 
-1. Clones/mines a repo's full commit history (`evomind/ingestion/git_miner.py`,
+1. Clones a repo once locally (`evomind/ingestion/repo_source.py`) and mines
+   its full commit history for process metrics (`evomind/ingestion/git_miner.py`,
    via [PyDriller](https://pydriller.readthedocs.io/)).
-2. Picks a **cutoff date** at `train_fraction` through the repo's history.
-3. Computes, per file, using only commits at or before the cutoff:
+2. Picks a **cutoff date** at `train_fraction` through the repo's history,
+   and resolves the exact commit at or before it
+   (`evomind/ingestion/tree_snapshot.py`, via `git rev-list`).
+3. Reads the *exact* file tree at that commit — and separately at `HEAD` —
+   via `git archive`, not by replaying commit diffs chronologically (see
+   "Why tree reads, not diff replay" below).
+4. Computes, per file, using only commits at or before the cutoff:
    process metrics (churn, commit count, author count, prior bug-fix count,
    age, recency) and static metrics (LOC, cyclomatic complexity,
    maintainability index, Halstead volume/difficulty) on the file's content
    snapshot *as of the cutoff* (`evomind/metrics/code_metrics.py`, via
    [radon](https://radon.readthedocs.io/)).
-4. Labels each file `is_bug_prone = 1` if a bug-fixing commit (keyword
+5. Labels each file `is_bug_prone = 1` if a bug-fixing commit (keyword
    heuristic on commit messages — see `BUG_KEYWORDS` in `git_miner.py`)
    touches it strictly *after* the cutoff, within `horizon_days`.
-5. Trains a Random Forest against a Logistic Regression baseline
+6. Trains a Random Forest against a Logistic Regression baseline
    (`evomind/ml/train.py`), evaluated on a held-out split with precision,
    recall, F1, ROC-AUC, and average precision.
-6. Re-scores the repo's *current* files (latest snapshot, full history) with
-   the trained model to produce a live risk ranking.
-7. On request (dashboard button, or `POST /recommend`), sends one risky
+7. Re-scores the repo's *current* files (latest snapshot) with the trained
+   model to produce a live risk ranking.
+8. Parses every current file's imports with the stdlib `ast` module and
+   builds an intra-repo dependency graph (`evomind/architecture/dependency_graph.py`),
+   computing afferent/efferent coupling, instability, and circular-dependency
+   groups (via Tarjan's SCC algorithm) — external/stdlib imports are dropped
+   since they never resolve to an internal file.
+9. On request (dashboard button, or `POST /recommend`), sends one risky
    file's metrics + source excerpt to Claude (`evomind/llm/recommend.py`)
    and returns a structured summary + prioritized refactoring suggestions.
+
+### Why tree reads, not diff replay
+
+An earlier version reconstructed "current file content" by replaying every
+commit's add/modify/delete/rename chronologically and mutating a shared
+dict. This is unsound under non-linear history: a long-lived branch created
+*before* a rename, merged *after* it, gets visited by PyDriller in
+commit-date order — so a file already renamed away on the mainline gets
+resurrected by that branch's later-dated (but logically earlier) commits.
+This happened for real on Flask's history (`flask/app.py` → `src/flask/app.py`
+in 2019, then reappearing because a pre-rename branch merged weeks later).
+`git rev-list` + `git archive` sidestep it entirely by resolving one exact
+commit and reading its tree directly — no diff replay, no ambiguity.
+`tests/test_tree_snapshot.py` covers this.
 
 ### Why the cutoff/horizon split matters
 
@@ -79,11 +105,11 @@ one).
 ```
 
 Open `http://127.0.0.1:8000/` for the dashboard (repo input, model
-evaluation, feature importances, live risk ranking, "AI recommendation"
-button per file — light/dark). Or call `POST /analyze` directly with
-`{"repo": "https://github.com/pallets/flask"}`, then `POST /recommend` with
-`{"repo": "...", "file_path": "..."}` for one file's suggestions.
-Interactive API docs at `http://127.0.0.1:8000/docs`.
+evaluation, feature importances, live risk ranking, architectural coupling +
+circular dependencies, "AI recommendation" button per file — light/dark).
+Or call `POST /analyze` directly with `{"repo": "https://github.com/pallets/flask"}`,
+then `POST /recommend` with `{"repo": "...", "file_path": "..."}` for one
+file's suggestions. Interactive API docs at `http://127.0.0.1:8000/docs`.
 
 **Expect roughly 1–3 minutes per analysis** — it walks the repo's full
 commit history once (cloning it locally first so nothing is fetched twice).
@@ -110,8 +136,12 @@ will make all of them slower, not just share the wait.
 - **Single train/test split**, not the rolling-origin time-based evaluation
   used in more rigorous defect-prediction papers (e.g. Robredo et al., 2024).
   Reasonable extension if there's time.
-- No dependency-graph / architectural-coupling module yet — that's the next
-  slice (the proposal's Software Architecture Analysis Module).
+- **Dependency graph resolves imports heuristically** (`_path_to_module` in
+  `dependency_graph.py` strips a leading `src/`/`lib/` container dir, tries
+  progressively shorter dotted-path prefixes). Works well for standard
+  layouts; unconventional package structures may under- or over-resolve
+  edges. Only `.py` files are considered — matches the rest of the pipeline's
+  Python-only scope.
 - `/recommend` caches only the *single most recent* `/analyze` result
   in-memory (by design — this is a one-demo-at-a-time tool, not a
   multi-tenant service). Analyzing a second repo evicts the first.

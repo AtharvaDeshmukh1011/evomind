@@ -58,6 +58,13 @@ class RiskyFile(BaseModel):
     risk_score: float
 
 
+class CoupledFile(BaseModel):
+    file_path: str
+    afferent: int  # files that depend on this one
+    efferent: int  # files this one depends on
+    instability: float
+
+
 class AnalyzeResponse(BaseModel):
     repo: str
     cutoff: str
@@ -68,6 +75,9 @@ class AnalyzeResponse(BaseModel):
     best_model: str
     feature_importances: dict[str, float]
     top_risk_files: list[RiskyFile]
+    dependency_edge_count: int
+    most_coupled_files: list[CoupledFile]
+    cyclic_groups: list[list[str]]
 
 
 class RecommendRequest(BaseModel):
@@ -114,6 +124,10 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
 
     top_risk = result.file_risk_scores.head(req.top_n)
 
+    most_coupled = sorted(
+        result.coupling, key=lambda c: c.afferent + c.efferent, reverse=True
+    )[:req.top_n]
+
     return AnalyzeResponse(
         repo=result.repo,
         cutoff=result.cutoff,
@@ -127,6 +141,18 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
             RiskyFile(file_path=row.file_path, risk_score=row.risk_score)
             for row in top_risk.itertuples()
         ],
+        dependency_edge_count=len(result.dependency_graph.edges),
+        most_coupled_files=[
+            CoupledFile(
+                file_path=c.file_path,
+                afferent=c.afferent,
+                efferent=c.efferent,
+                instability=c.instability,
+            )
+            for c in most_coupled
+            if c.afferent + c.efferent > 0
+        ],
+        cyclic_groups=result.cyclic_groups,
     )
 
 

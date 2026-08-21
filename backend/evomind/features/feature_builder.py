@@ -22,11 +22,13 @@ from evomind.metrics.code_metrics import compute_file_metrics
 def build_feature_table(
     mined: MinedRepository,
     cutoff: datetime,
+    snapshots: dict[str, str],
     horizon_days: int = 90,
-    snapshots: dict[str, str] | None = None,
 ) -> pd.DataFrame:
+    """`snapshots` must be an exact file-tree read (see `tree_snapshot.py`)
+    for the point in time `cutoff` represents — not a chronological replay,
+    which can misattribute content under non-linear history."""
     horizon_end = cutoff + timedelta(days=horizon_days)
-    snapshots = mined.snapshots if snapshots is None else snapshots
 
     history: dict[str, list[FileCommitRecord]] = {}
     future_bug_files: set[str] = set()

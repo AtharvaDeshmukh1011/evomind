@@ -12,9 +12,16 @@ from datetime import datetime
 
 import pandas as pd
 
+from evomind.architecture.dependency_graph import (
+    DependencyGraph,
+    build_dependency_graph,
+    compute_coupling,
+    find_cyclic_groups,
+)
 from evomind.features.feature_builder import build_feature_table
 from evomind.ingestion.git_miner import mine_repository
 from evomind.ingestion.repo_source import local_repo_path
+from evomind.ingestion.tree_snapshot import commit_at_or_before, read_files_at_commit
 from evomind.ml.train import FEATURE_COLUMNS, TrainingReport, train_and_evaluate
 
 
@@ -48,6 +55,9 @@ class PipelineResult:
     file_risk_scores: pd.DataFrame
     current_metrics: pd.DataFrame  # file_path + FEATURE_COLUMNS + risk_score, for recommendations
     latest_snapshots: dict[str, str]  # file_path -> current source content
+    dependency_graph: DependencyGraph
+    coupling: list  # list[CouplingMetrics]
+    cyclic_groups: list[list[str]]
 
 
 def run_pipeline(
@@ -59,14 +69,24 @@ def run_pipeline(
         start, end = _commit_date_range(path)
         cutoff = start + (end - start) * train_fraction
 
-        # Single traversal captures both the training-time cutoff snapshot
-        # and the latest (current) snapshot of every file.
-        mined = mine_repository(path, snapshot_asof=cutoff, track_latest_snapshot=True)
+        mined = mine_repository(path)
+
+        # Exact tree reads at a resolved commit, not a chronological diff
+        # replay — see tree_snapshot.py for why the replay approach silently
+        # corrupts content under non-linear history (a branch predating a
+        # rename, merged after it, "resurrects" the renamed-away path).
+        cutoff_commit = commit_at_or_before(path, cutoff)
+        if cutoff_commit is None:
+            raise ValueError(
+                f"Could not resolve a commit at or before {cutoff.isoformat()} in '{repo}'."
+            )
+        cutoff_snapshots = read_files_at_commit(path, cutoff_commit)
+        latest_snapshots = read_files_at_commit(path, "HEAD")
 
     if not mined.records:
         raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
 
-    train_df = build_feature_table(mined, cutoff=cutoff, horizon_days=horizon_days)
+    train_df = build_feature_table(mined, cutoff=cutoff, snapshots=cutoff_snapshots, horizon_days=horizon_days)
 
     if len(train_df) < 20 or train_df["is_bug_prone"].nunique() < 2:
         raise ValueError(
@@ -81,12 +101,16 @@ def run_pipeline(
     # Score the repo's current state (as of `end`) with no future horizon to
     # label against — this is the actual "predict what's risky now" output.
     current_df = build_feature_table(
-        mined, cutoff=end, horizon_days=0, snapshots=mined.latest_snapshots
+        mined, cutoff=end, snapshots=latest_snapshots, horizon_days=0
     )
     current_df["risk_score"] = report.model.predict_proba(current_df[FEATURE_COLUMNS])[:, 1]
     scores = current_df[["file_path", "risk_score"]].sort_values(
         "risk_score", ascending=False
     )
+
+    dep_graph = build_dependency_graph(latest_snapshots)
+    coupling = compute_coupling(dep_graph)
+    cyclic_groups = find_cyclic_groups(dep_graph)
 
     return PipelineResult(
         repo=repo,
@@ -96,5 +120,8 @@ def run_pipeline(
         training_report=report,
         file_risk_scores=scores,
         current_metrics=current_df,
-        latest_snapshots=mined.latest_snapshots,
+        latest_snapshots=latest_snapshots,
+        dependency_graph=dep_graph,
+        coupling=coupling,
+        cyclic_groups=cyclic_groups,
     )

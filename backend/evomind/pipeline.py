@@ -46,6 +46,8 @@ class PipelineResult:
     feature_table: pd.DataFrame
     training_report: TrainingReport
     file_risk_scores: pd.DataFrame
+    current_metrics: pd.DataFrame  # file_path + FEATURE_COLUMNS + risk_score, for recommendations
+    latest_snapshots: dict[str, str]  # file_path -> current source content
 
 
 def run_pipeline(
@@ -93,4 +95,6 @@ def run_pipeline(
         feature_table=train_df,
         training_report=report,
         file_risk_scores=scores,
+        current_metrics=current_df,
+        latest_snapshots=mined.latest_snapshots,
     )

@@ -9,9 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from evomind.pipeline import run_pipeline
+from evomind.llm.recommend import RecommendationError, generate_recommendation
+from evomind.ml.train import FEATURE_COLUMNS
+from evomind.pipeline import PipelineResult, run_pipeline
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+# Single-demo in-memory cache: the dashboard analyzes one repo at a time, and
+# /recommend needs the metrics + source snapshots the preceding /analyze call
+# already computed, without re-cloning/re-mining just to fetch one file.
+_last_result: dict[str, PipelineResult] = {}
 
 app = FastAPI(
     title="EvoMind API",
@@ -63,6 +70,24 @@ class AnalyzeResponse(BaseModel):
     top_risk_files: list[RiskyFile]
 
 
+class RecommendRequest(BaseModel):
+    repo: str = Field(..., description="Repo previously passed to /analyze")
+    file_path: str = Field(..., description="One of the file paths returned by /analyze")
+
+
+class RefactoringSuggestionResponse(BaseModel):
+    issue: str
+    recommendation: str
+    priority: str
+
+
+class RecommendResponse(BaseModel):
+    file_path: str
+    risk_score: float
+    summary: str
+    suggestions: list[RefactoringSuggestionResponse]
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
@@ -84,6 +109,9 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    _last_result.clear()  # single-demo cache: only ever keep the latest analysis
+    _last_result[req.repo] = result
+
     top_risk = result.file_risk_scores.head(req.top_n)
 
     return AnalyzeResponse(
@@ -98,5 +126,49 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         top_risk_files=[
             RiskyFile(file_path=row.file_path, risk_score=row.risk_score)
             for row in top_risk.itertuples()
+        ],
+    )
+
+
+@app.post("/recommend", response_model=RecommendResponse)
+def recommend(req: RecommendRequest) -> RecommendResponse:
+    result = _last_result.get(req.repo)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No cached analysis for this repo — call /analyze first.",
+        )
+
+    row = result.current_metrics[result.current_metrics["file_path"] == req.file_path]
+    if row.empty:
+        raise HTTPException(status_code=404, detail=f"'{req.file_path}' was not in the last analysis.")
+    row = row.iloc[0]
+
+    source = result.latest_snapshots.get(req.file_path)
+    if source is None:
+        raise HTTPException(status_code=404, detail=f"No source snapshot cached for '{req.file_path}'.")
+
+    # pandas/numpy scalars (int64, float64) aren't JSON-serializable — coerce to native Python types
+    metrics = {col: row[col].item() if hasattr(row[col], "item") else row[col] for col in FEATURE_COLUMNS}
+
+    try:
+        rec = generate_recommendation(
+            file_path=req.file_path,
+            risk_score=float(row["risk_score"]),
+            metrics=metrics,
+            source=source,
+        )
+    except RecommendationError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return RecommendResponse(
+        file_path=req.file_path,
+        risk_score=float(row["risk_score"]),
+        summary=rec.summary,
+        suggestions=[
+            RefactoringSuggestionResponse(
+                issue=s.issue, recommendation=s.recommendation, priority=s.priority
+            )
+            for s in rec.suggestions
         ],
     )

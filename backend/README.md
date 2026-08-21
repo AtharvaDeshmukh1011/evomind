@@ -1,9 +1,11 @@
 # EvoMind — Backend MVP
 
-Predictive bug-proneness scoring from Git history and static code metrics.
+Predictive bug-proneness scoring from Git history and static code metrics,
+plus LLM-generated refactoring recommendations for the riskiest files.
 This is the first working slice of the full EvoMind proposal: it implements
-the **Version Control Analysis Module**, **Source Code Analysis Module**, and
-a real **Predictive Analytics Module**, end to end, on real repositories.
+the **Version Control Analysis Module**, **Source Code Analysis Module**, a
+real **Predictive Analytics Module**, and a first cut of the **AI
+Recommendation Module**, end to end, on real repositories.
 
 ## What it actually does
 
@@ -24,6 +26,9 @@ a real **Predictive Analytics Module**, end to end, on real repositories.
    recall, F1, ROC-AUC, and average precision.
 6. Re-scores the repo's *current* files (latest snapshot, full history) with
    the trained model to produce a live risk ranking.
+7. On request (dashboard button, or `POST /recommend`), sends one risky
+   file's metrics + source excerpt to Claude (`evomind/llm/recommend.py`)
+   and returns a structured summary + prioritized refactoring suggestions.
 
 ### Why the cutoff/horizon split matters
 
@@ -40,6 +45,17 @@ cd backend
 python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 ```
+
+For the "AI recommendation" button/`/recommend` endpoint, set an Anthropic
+API key (the ML pipeline, dashboard, and `/analyze` all work fine without
+one — this is only needed for LLM-generated refactoring suggestions):
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...   # PowerShell: $env:ANTHROPIC_API_KEY = "sk-ant-..."
+```
+
+Without a key, `/recommend` fails with a clear 502 error message rather
+than crashing — safe to leave unset while demoing the rest of the system.
 
 ## Run the pipeline from the CLI
 
@@ -63,8 +79,10 @@ one).
 ```
 
 Open `http://127.0.0.1:8000/` for the dashboard (repo input, model
-evaluation, feature importances, live risk ranking — light/dark). Or call
-`POST /analyze` directly with `{"repo": "https://github.com/pallets/flask"}`.
+evaluation, feature importances, live risk ranking, "AI recommendation"
+button per file — light/dark). Or call `POST /analyze` directly with
+`{"repo": "https://github.com/pallets/flask"}`, then `POST /recommend` with
+`{"repo": "...", "file_path": "..."}` for one file's suggestions.
 Interactive API docs at `http://127.0.0.1:8000/docs`.
 
 **Expect roughly 1–3 minutes per analysis** — it walks the repo's full
@@ -92,5 +110,12 @@ will make all of them slower, not just share the wait.
 - **Single train/test split**, not the rolling-origin time-based evaluation
   used in more rigorous defect-prediction papers (e.g. Robredo et al., 2024).
   Reasonable extension if there's time.
-- No dependency-graph / architectural-coupling module yet, no LLM
-  recommendation layer yet, no dashboard yet — those are the next slices.
+- No dependency-graph / architectural-coupling module yet — that's the next
+  slice (the proposal's Software Architecture Analysis Module).
+- `/recommend` caches only the *single most recent* `/analyze` result
+  in-memory (by design — this is a one-demo-at-a-time tool, not a
+  multi-tenant service). Analyzing a second repo evicts the first.
+- LLM recommendations use plain JSON-in-the-prompt + manual Pydantic
+  validation rather than the SDK's newer structured-output helpers
+  (`messages.parse`), since those need a newer `anthropic` SDK version than
+  what's pinned here. Functionally equivalent, just more portable.

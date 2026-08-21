@@ -155,6 +155,47 @@
   .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
   .score-cell { width: 56px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
+  .ai-btn {
+    border: 1px solid var(--border); background: var(--surface-page); color: var(--text-secondary);
+    border-radius: 6px; padding: 4px 9px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .ai-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+  .modal-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    padding: 18px 20px; border-bottom: 1px solid var(--gridline); position: sticky; top: 0; background: var(--surface-1);
+  }
+  .modal-title { font-size: 14px; font-weight: 700; }
+  .modal-file { font-size: 12px; color: var(--text-muted); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; margin-top: 3px; }
+  .modal-close {
+    border: none; background: none; color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px;
+  }
+  .modal-close:hover { color: var(--text-primary); }
+  .modal-body { padding: 18px 20px; }
+  .rec-summary { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+  .rec-suggestion {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+  }
+  .rec-suggestion:last-child { margin-bottom: 0; }
+  .rec-suggestion-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .rec-priority {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+    padding: 2px 7px; border-radius: 5px; color: white;
+  }
+  .rec-issue { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .rec-recommendation { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+  .rec-error { color: var(--status-critical); font-size: 13px; }
+
   .empty-state { color: var(--text-muted); font-size: 13px; padding: 30px 0; text-align: center; }
   .caveat {
     font-size: 11.5px; color: var(--text-muted); border-top: 1px dashed var(--gridline); margin-top: 14px; padding-top: 10px;
@@ -235,7 +276,7 @@
       <h2>Current risk ranking</h2>
       <p class="desc">Files scored by the trained model against the repository's latest state.</p>
       <table class="risk-table">
-        <thead><tr><th>#</th><th>File</th><th>Risk</th><th></th><th>Score</th></tr></thead>
+        <thead><tr><th>#</th><th>File</th><th>Risk</th><th></th><th>Score</th><th></th></tr></thead>
         <tbody id="riskTableBody"></tbody>
       </table>
       <div class="caveat">
@@ -249,12 +290,28 @@
   <div class="empty-state" id="emptyState">Run an analysis to see results.</div>
 </div>
 
+<div class="modal-overlay" id="recModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">AI recommendation</div>
+        <div class="modal-file" id="recFilePath">—</div>
+      </div>
+      <button class="modal-close" id="recClose" type="button">&times;</button>
+    </div>
+    <div class="modal-body" id="recBody">
+      <div class="empty-state">Loading…</div>
+    </div>
+  </div>
+</div>
+
 <script>
 const form = document.getElementById('analyzeForm');
 const btn = document.getElementById('analyzeBtn');
 const statusLine = document.getElementById('statusLine');
 const results = document.getElementById('results');
 const emptyState = document.getElementById('emptyState');
+let currentRepo = null;
 
 const STATUS_BANDS = [
   { min: 0.66, label: 'Critical', color: 'var(--status-critical)' },
@@ -293,6 +350,7 @@ form.addEventListener('submit', async (e) => {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || 'Analysis failed.');
+    currentRepo = repo;
     render(data);
     statusLine.textContent = `Done — analyzed as of cutoff ${new Date(data.cutoff).toLocaleDateString()}.`;
   } catch (err) {
@@ -372,7 +430,7 @@ function renderFeatureImportance(importances) {
 function renderRiskTable(files) {
   const tbody = document.getElementById('riskTableBody');
   if (!files.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No files scored.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No files scored.</td></tr>';
     return;
   }
   const max = Math.max(...files.map(f => f.risk_score), 0.001);
@@ -385,8 +443,62 @@ function renderRiskTable(files) {
       <td><span class="chip"><span class="dot" style="background:${band.color}"></span>${band.label}</span></td>
       <td class="risk-bar-cell"><div class="risk-track"><div class="risk-fill" style="width:${pct}%;background:${band.color}"></div></div></td>
       <td class="score-cell">${f.risk_score.toFixed(3)}</td>
+      <td><button class="ai-btn" data-file="${f.file_path.replace(/"/g, '&quot;')}">AI recommendation</button></td>
     </tr>`;
   }).join('');
+
+  tbody.querySelectorAll('.ai-btn').forEach(el => {
+    el.addEventListener('click', () => openRecommendation(el.dataset.file));
+  });
+}
+
+const recModal = document.getElementById('recModal');
+const recBody = document.getElementById('recBody');
+const recFilePath = document.getElementById('recFilePath');
+
+document.getElementById('recClose').addEventListener('click', closeRecommendation);
+recModal.addEventListener('click', (e) => { if (e.target === recModal) closeRecommendation(); });
+
+function closeRecommendation() {
+  recModal.classList.remove('open');
+}
+
+const PRIORITY_COLOR = {
+  high: 'var(--status-critical)',
+  medium: 'var(--status-warning)',
+  low: 'var(--status-good)',
+};
+
+async function openRecommendation(filePath) {
+  recFilePath.textContent = filePath;
+  recBody.innerHTML = '<div class="empty-state">Asking the model for a recommendation…</div>';
+  recModal.classList.add('open');
+
+  try {
+    const res = await fetch('/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo: currentRepo, file_path: filePath }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Recommendation failed.');
+
+    const suggestionsHtml = data.suggestions.length
+      ? data.suggestions.map(s => `
+        <div class="rec-suggestion">
+          <div class="rec-suggestion-head">
+            <span class="rec-priority" style="background:${PRIORITY_COLOR[s.priority] || 'var(--text-muted)'}">${s.priority}</span>
+            <span class="rec-issue">${s.issue}</span>
+          </div>
+          <div class="rec-recommendation">${s.recommendation}</div>
+        </div>
+      `).join('')
+      : '<div class="empty-state">No specific suggestions — the model didn\'t flag concrete issues.</div>';
+
+    recBody.innerHTML = `<div class="rec-summary">${data.summary}</div>${suggestionsHtml}`;
+  } catch (err) {
+    recBody.innerHTML = `<div class="rec-error">${err.message}</div>`;
+  }
 }
 </script>
 </body>

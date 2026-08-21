@@ -210,3 +210,67 @@ def test_non_python_non_js_files_excluded_from_graph():
     graph = build_dependency_graph(snapshots)
     assert graph.files == []
     assert graph.edges == []
+
+
+# --- Java ---
+
+
+def test_java_import_creates_edge():
+    snapshots = {
+        "src/com/example/A.java": "package com.example;\nimport com.example.util.B;\nclass A {}\n",
+        "src/com/example/util/B.java": "package com.example.util;\nclass B {}\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("src/com/example/A.java", "src/com/example/util/B.java") in edges
+
+
+def test_java_wildcard_import_matches_all_classes_in_package():
+    snapshots = {
+        "A.java": "package com.example;\nimport com.example.util.*;\nclass A {}\n",
+        "B.java": "package com.example.util;\nclass B {}\n",
+        "C.java": "package com.example.util;\nclass C {}\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("A.java", "B.java") in edges
+    assert ("A.java", "C.java") in edges
+
+
+def test_java_default_package_resolves_by_bare_class_name():
+    snapshots = {
+        "A.java": "import B;\nclass A {}\n",
+        "B.java": "class B {}\n",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("A.java", "B.java") in edges
+
+
+def test_java_external_import_produces_no_edge():
+    snapshots = {"A.java": "package com.example;\nimport java.util.List;\nclass A {}\n"}
+    graph = build_dependency_graph(snapshots)
+    assert graph.edges == []
+
+
+def test_java_self_import_not_an_edge():
+    snapshots = {"A.java": "package com.example;\nimport com.example.A;\nclass A {}\n"}
+    graph = build_dependency_graph(snapshots)
+    assert graph.edges == []
+
+
+def test_java_python_js_all_resolve_independently():
+    snapshots = {
+        "A.java": "package p;\nimport p.util.B;\nclass A {}\n",
+        "p/util/B.java": "package p.util;\nclass B {}\n",
+        "src/a.js": "import b from './b';\n",
+        "src/b.js": "export default 1;\n",
+        "pkg/x.py": "import pkg.y\n",
+        "pkg/y.py": "z = 1\n",
+        "pkg/__init__.py": "",
+    }
+    graph = build_dependency_graph(snapshots)
+    edges = {(e.source, e.target) for e in graph.edges}
+    assert ("A.java", "p/util/B.java") in edges
+    assert ("src/a.js", "src/b.js") in edges
+    assert ("pkg/x.py", "pkg/y.py") in edges

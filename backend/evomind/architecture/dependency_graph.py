@@ -1,14 +1,17 @@
 """Intra-repo dependency graph, coupling metrics, and cycle detection.
 
 Python imports are parsed with the stdlib `ast` module and resolved to
-dotted module names. JS/TS imports are extracted with a regex (a full parser
-is out of scope) and resolved as relative file paths, the way Node/bundler
-resolution actually works. Both resolve purely within the mined snapshot —
-external packages and stdlib imports never match an internal file, so
-they're silently dropped rather than producing external nodes. This keeps
-the graph scoped to "what this repo's own files depend on," which is what
-coupling/cycle analysis actually needs. Other languages are not yet
-supported; their files are simply excluded from the graph.
+dotted module names. JS/TS and Java imports are extracted with regexes (full
+parsers are out of scope) — JS/TS resolved as relative file paths the way
+Node/bundler resolution actually works, Java resolved as fully-qualified
+class names built from each file's own `package` declaration, since Java's
+package name is self-describing rather than purely directory-based like
+Python. All three resolve purely within the mined snapshot — external
+packages/stdlib imports never match an internal file, so they're silently
+dropped rather than producing external nodes. This keeps the graph scoped
+to "what this repo's own files depend on," which is what coupling/cycle
+analysis actually needs. Other languages are not yet supported; their files
+are simply excluded from the graph.
 """
 
 from __future__ import annotations
@@ -127,6 +130,33 @@ def _resolve_js_import(current_file: str, specifier: str, path_lookup: dict[str,
     return None
 
 
+# Package declaration must be the first non-comment statement in a Java
+# file — one per file, so a plain search (not MULTILINE-anchored) is fine.
+_JAVA_PACKAGE_PATTERN = re.compile(r"\bpackage\s+([\w.]+)\s*;")
+_JAVA_IMPORT_PATTERN = re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)(\.\*)?\s*;", re.MULTILINE)
+
+
+def _java_class_name(file_path: str) -> str:
+    """The bare class name Java expects: the filename without its extension."""
+    name = file_path.replace("\\", "/").rsplit("/", 1)[-1]
+    return name[:-5] if name.endswith(".java") else name
+
+
+def _java_full_class_name(file_path: str, source: str) -> str:
+    """`package` declaration + filename — Java's own naming convention,
+    self-describing unlike Python's directory-only convention, so no
+    src-root stripping/guessing is needed here."""
+    match = _JAVA_PACKAGE_PATTERN.search(source)
+    class_name = _java_class_name(file_path)
+    return f"{match.group(1)}.{class_name}" if match else class_name
+
+
+def _extract_java_imports(source: str) -> set[tuple[str, bool]]:
+    """Returns (dotted_name, is_wildcard) pairs — `import a.b.C;` yields
+    ("a.b.C", False); `import a.b.*;` yields ("a.b", True)."""
+    return {(m.group(1), bool(m.group(2))) for m in _JAVA_IMPORT_PATTERN.finditer(source)}
+
+
 @dataclass
 class ImportEdge:
     source: str  # importing file
@@ -176,20 +206,50 @@ def _build_js_edges(js_snapshots: dict[str, str]) -> list[ImportEdge]:
     return edges
 
 
+def _build_java_edges(java_snapshots: dict[str, str]) -> list[ImportEdge]:
+    full_name_to_file = {_java_full_class_name(path, src): path for path, src in java_snapshots.items()}
+
+    # For wildcard imports: every known class under a given package prefix.
+    files_by_package: dict[str, list[str]] = {}
+    for full_name, path in full_name_to_file.items():
+        files_by_package.setdefault(_package_of(full_name), []).append(path)
+
+    edges: list[ImportEdge] = []
+    for file_path, source in java_snapshots.items():
+        current_name = _java_full_class_name(file_path, source)
+        matched_targets: set[str] = set()
+
+        for dotted_name, is_wildcard in _extract_java_imports(source):
+            if is_wildcard:
+                matched_targets.update(
+                    p for p in files_by_package.get(dotted_name, []) if p != file_path
+                )
+            elif dotted_name in full_name_to_file and dotted_name != current_name:
+                matched_targets.add(full_name_to_file[dotted_name])
+
+        edges.extend(ImportEdge(source=file_path, target=t) for t in matched_targets)
+    return edges
+
+
 def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
     """Builds a graph of import edges restricted to files present in `snapshots`.
 
-    Python and JS/TS files are each resolved with their own logic (dotted
-    module names vs. relative file paths) into one unified graph. Files in
-    languages this module doesn't yet parse are excluded entirely — not
-    listed as isolated nodes, since we never actually looked at their
-    imports.
+    Python, JS/TS, and Java files are each resolved with their own logic
+    (dotted module names, relative file paths, and fully-qualified class
+    names respectively) into one unified graph. Files in languages this
+    module doesn't yet parse are excluded entirely — not listed as isolated
+    nodes, since we never actually looked at their imports.
     """
     py_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".py")}
     js_snapshots = {path: src for path, src in snapshots.items() if path.endswith(JS_TS_EXTENSIONS)}
+    java_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".java")}
 
-    graph = DependencyGraph(files=[*py_snapshots, *js_snapshots])
-    graph.edges = _build_python_edges(py_snapshots) + _build_js_edges(js_snapshots)
+    graph = DependencyGraph(files=[*py_snapshots, *js_snapshots, *java_snapshots])
+    graph.edges = (
+        _build_python_edges(py_snapshots)
+        + _build_js_edges(js_snapshots)
+        + _build_java_edges(java_snapshots)
+    )
     return graph
 
 

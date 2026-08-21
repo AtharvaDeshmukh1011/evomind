@@ -6,9 +6,8 @@ service (evomind/api/main.py) so the two entry points can't drift apart.
 
 from __future__ import annotations
 
-import subprocess
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 
@@ -21,28 +20,9 @@ from evomind.architecture.dependency_graph import (
 from evomind.features.feature_builder import build_feature_table
 from evomind.ingestion.git_miner import mine_repository
 from evomind.ingestion.repo_source import local_repo_path
-from evomind.ingestion.tree_snapshot import commit_at_or_before, read_files_at_commit
+from evomind.ingestion.tree_snapshot import commit_at_or_before, commit_date_range, read_files_at_commit
+from evomind.labeling.szz import refine_labels_with_szz
 from evomind.ml.train import FEATURE_COLUMNS, TrainingReport, train_and_evaluate
-
-
-def _commit_date_range(path: str) -> tuple[datetime, datetime]:
-    """Min/max commit author dates, via `git log` directly.
-
-    Avoids a full PyDriller traversal (which parses every commit's diffs)
-    just to learn the repo's date span. Scans every author date rather than
-    trusting the first/last log entries, since commit order (by commit date)
-    and author-date order can diverge under rebases/backports.
-    """
-    out = subprocess.run(
-        ["git", "-C", path, "log", "--format=%aI"],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    dates = [datetime.fromisoformat(line).replace(tzinfo=None) for line in out.splitlines() if line]
-    if not dates:
-        raise ValueError("No commits found in repository.")
-    return min(dates), max(dates)
 
 
 @dataclass
@@ -66,10 +46,14 @@ def run_pipeline(
     train_fraction: float = 0.65,
 ) -> PipelineResult:
     with local_repo_path(repo) as path:
-        start, end = _commit_date_range(path)
+        start, end = commit_date_range(path)
         cutoff = start + (end - start) * train_fraction
+        horizon_end = cutoff + timedelta(days=horizon_days)
 
         mined = mine_repository(path)
+
+        if not mined.records:
+            raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
 
         # Exact tree reads at a resolved commit, not a chronological diff
         # replay — see tree_snapshot.py for why the replay approach silently
@@ -83,10 +67,13 @@ def run_pipeline(
         cutoff_snapshots = read_files_at_commit(path, cutoff_commit)
         latest_snapshots = read_files_at_commit(path, "HEAD")
 
-    if not mined.records:
-        raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
+        train_df = build_feature_table(mined, cutoff=cutoff, snapshots=cutoff_snapshots, horizon_days=horizon_days)
 
-    train_df = build_feature_table(mined, cutoff=cutoff, snapshots=cutoff_snapshots, horizon_days=horizon_days)
+        # SZZ needs `git blame`/`git diff` against the local clone, so this
+        # has to run before the `with` block exits and the clone is cleaned
+        # up. Keeps only the labels whose underlying defect actually existed
+        # at cutoff — see szz.py for why the naive heuristic overcounts.
+        train_df = refine_labels_with_szz(train_df, mined.records, path, cutoff, horizon_end)
 
     if len(train_df) < 20 or train_df["is_bug_prone"].nunique() < 2:
         raise ValueError(

@@ -291,8 +291,11 @@
       </table>
       <div class="caveat">
         Risk = predicted probability of a bug-fixing commit in the model's labeling horizon, not a certainty.
-        Bug-fix labeling uses a commit-message keyword heuristic, not full SZZ blame tracing — treat scores as
-        directional signal, not ground truth.
+        Fix commits are identified by a commit-message keyword heuristic, then traced back via SZZ
+        (<code>git blame</code> on each fix's parent revision) to confirm the underlying defect actually
+        existed as of the training cutoff — not a bug introduced later that a fix just happened to touch
+        this file for. Still a heuristic pipeline end to end — treat scores as directional signal, not
+        ground truth.
       </div>
     </div>
 

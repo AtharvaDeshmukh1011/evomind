@@ -25,6 +25,26 @@ from datetime import datetime
 from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
 
 
+def commit_date_range(repo_path: str) -> tuple[datetime, datetime]:
+    """Min/max commit author dates, via `git log` directly.
+
+    Avoids a full PyDriller traversal (which parses every commit's diffs)
+    just to learn the repo's date span. Scans every author date rather than
+    trusting the first/last log entries, since commit order (by commit date)
+    and author-date order can diverge under rebases/backports.
+    """
+    out = subprocess.run(
+        ["git", "-C", repo_path, "log", "--format=%aI"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    dates = [datetime.fromisoformat(line).replace(tzinfo=None) for line in out.splitlines() if line]
+    if not dates:
+        raise ValueError("No commits found in repository.")
+    return min(dates), max(dates)
+
+
 def commit_at_or_before(repo_path: str, cutoff: datetime, ref: str = "HEAD") -> str | None:
     """The hash of the latest commit at or before `cutoff`, on `ref`'s ancestry."""
     out = subprocess.run(

@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>EvoMind — Software Evolution Intelligence</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-page:   #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6; /* blue — Logistic Regression */
+    --series-2:       #eb6834; /* orange — Random Forest */
+    --seq-100:        #cde2fb;
+    --seq-450:        #2a78d6;
+    --seq-700:        #0d366b;
+    --status-good:     #0ca30c;
+    --status-warning:  #fab219;
+    --status-serious:  #ec835a;
+    --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-page:   #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #d95926;
+      --seq-100:        #184f95;
+      --seq-450:        #3987e5;
+      --seq-700:        #cde2fb;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-page:   #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --series-2:       #d95926;
+    --seq-100:        #184f95;
+    --seq-450:        #3987e5;
+    --seq-700:        #cde2fb;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--surface-page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .brand span { color: var(--text-muted); font-size: 13px; }
+  button.theme-toggle {
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+  }
+
+  form.controls {
+    display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px; margin-bottom: 22px;
+  }
+  form.controls label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); }
+  form.controls input {
+    border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px; font-size: 13px;
+    background: var(--surface-page); color: var(--text-primary); font-family: inherit;
+  }
+  form.controls button {
+    align-self: end; border: none; border-radius: 7px; background: var(--series-1); color: white;
+    font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer;
+  }
+  form.controls button:disabled { opacity: 0.55; cursor: default; }
+
+  .status-line { font-size: 13px; color: var(--text-secondary); margin: -8px 0 20px; min-height: 18px; }
+  .status-line.error { color: var(--status-critical); }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
+  .stat-tile {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  }
+  .stat-tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-tile .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .stat-tile .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+  .panel {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 20px;
+  }
+  .panel h2 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+  .panel .desc { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; }
+
+  .legend { display: flex; gap: 16px; margin-bottom: 12px; }
+  .legend .item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+  table.metric-table { width: 100%; border-collapse: collapse; }
+  table.metric-table th {
+    text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600;
+    padding: 0 8px 8px; border-bottom: 1px solid var(--gridline);
+  }
+  table.metric-table td { padding: 9px 8px; border-bottom: 1px solid var(--gridline); font-size: 13px; vertical-align: middle; }
+  table.metric-table tr:last-child td { border-bottom: none; }
+  .metric-name { color: var(--text-secondary); white-space: nowrap; width: 130px; }
+  .bar-cell { width: auto; }
+  .bar-track { height: 10px; background: var(--gridline); border-radius: 4px; overflow: hidden; display: flex; gap: 2px; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .metric-value { width: 56px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+
+  .fi-row { display: grid; grid-template-columns: 220px 1fr 54px; align-items: center; gap: 10px; padding: 7px 0; }
+  .fi-name { font-size: 12.5px; color: var(--text-secondary); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+  .fi-track { height: 8px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+  .fi-fill { height: 100%; border-radius: 4px; background: var(--seq-450); }
+  .fi-value { font-size: 12px; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  table.risk-table { width: 100%; border-collapse: collapse; }
+  table.risk-table th {
+    text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600;
+    padding: 0 8px 8px; border-bottom: 1px solid var(--gridline); cursor: default;
+  }
+  table.risk-table td { padding: 8px; border-bottom: 1px solid var(--gridline); font-size: 12.5px; vertical-align: middle; }
+  table.risk-table tr:last-child td { border-bottom: none; }
+  .rank-cell { color: var(--text-muted); width: 28px; font-variant-numeric: tabular-nums; }
+  .file-cell { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--text-primary); }
+  .risk-bar-cell { width: 140px; }
+  .risk-track { height: 8px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+  .risk-fill { height: 100%; border-radius: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .score-cell { width: 56px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+  .empty-state { color: var(--text-muted); font-size: 13px; padding: 30px 0; text-align: center; }
+  .caveat {
+    font-size: 11.5px; color: var(--text-muted); border-top: 1px dashed var(--gridline); margin-top: 14px; padding-top: 10px;
+  }
+
+  @media (max-width: 720px) {
+    form.controls { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: repeat(2, 1fr); }
+    .fi-row { grid-template-columns: 110px 1fr 44px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>EvoMind</h1>
+      <span>Software Evolution Intelligence</span>
+    </div>
+    <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+  </header>
+
+  <form class="controls" id="analyzeForm">
+    <label>Repository (path or Git URL)
+      <input type="text" id="repo" value="https://github.com/pallets/flask" />
+    </label>
+    <label>Horizon (days)
+      <input type="number" id="horizon" value="365" min="30" max="1825" />
+    </label>
+    <label>Train fraction
+      <input type="number" id="trainFraction" value="0.65" min="0.1" max="0.95" step="0.05" />
+    </label>
+    <button type="submit" id="analyzeBtn">Analyze</button>
+  </form>
+  <div class="status-line" id="statusLine"></div>
+
+  <div id="results" style="display:none;">
+    <div class="stat-grid">
+      <div class="stat-tile">
+        <div class="label">Files analyzed</div>
+        <div class="value" id="statFiles">—</div>
+        <div class="sub" id="statCutoff">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Historically bug-prone</div>
+        <div class="value" id="statPositiveRate">—</div>
+        <div class="sub">of training set, within horizon</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Best model</div>
+        <div class="value" id="statBestModel">—</div>
+        <div class="sub" id="statBestF1">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="label">Highest current risk</div>
+        <div class="value" id="statTopRisk">—</div>
+        <div class="sub" id="statTopRiskFile">—</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Model evaluation</h2>
+      <p class="desc">Held-out test split — Random Forest vs. a Logistic Regression baseline.</p>
+      <div class="legend">
+        <div class="item"><span class="swatch" style="background:var(--series-1)"></span>Logistic Regression (baseline)</div>
+        <div class="item"><span class="swatch" style="background:var(--series-2)"></span>Random Forest</div>
+      </div>
+      <table class="metric-table" id="metricTable"><tbody></tbody></table>
+    </div>
+
+    <div class="panel">
+      <h2>Top predictors of bug-proneness</h2>
+      <p class="desc">Random Forest feature importances.</p>
+      <div id="featureImportance"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Current risk ranking</h2>
+      <p class="desc">Files scored by the trained model against the repository's latest state.</p>
+      <table class="risk-table">
+        <thead><tr><th>#</th><th>File</th><th>Risk</th><th></th><th>Score</th></tr></thead>
+        <tbody id="riskTableBody"></tbody>
+      </table>
+      <div class="caveat">
+        Risk = predicted probability of a bug-fixing commit in the model's labeling horizon, not a certainty.
+        Bug-fix labeling uses a commit-message keyword heuristic, not full SZZ blame tracing — treat scores as
+        directional signal, not ground truth.
+      </div>
+    </div>
+  </div>
+
+  <div class="empty-state" id="emptyState">Run an analysis to see results.</div>
+</div>
+
+<script>
+const form = document.getElementById('analyzeForm');
+const btn = document.getElementById('analyzeBtn');
+const statusLine = document.getElementById('statusLine');
+const results = document.getElementById('results');
+const emptyState = document.getElementById('emptyState');
+
+const STATUS_BANDS = [
+  { min: 0.66, label: 'Critical', color: 'var(--status-critical)' },
+  { min: 0.50, label: 'Serious',  color: 'var(--status-serious)' },
+  { min: 0.33, label: 'Watch',    color: 'var(--status-warning)' },
+  { min: 0,    label: 'Low',      color: 'var(--status-good)' },
+];
+function bandFor(score) {
+  return STATUS_BANDS.find(b => score >= b.min);
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme');
+  root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+});
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const repo = document.getElementById('repo').value.trim();
+  const horizon_days = parseInt(document.getElementById('horizon').value, 10);
+  const train_fraction = parseFloat(document.getElementById('trainFraction').value);
+  if (!repo) return;
+
+  btn.disabled = true;
+  statusLine.className = 'status-line';
+  statusLine.textContent = 'Mining repository history and training models — this walks the full commit log twice, so larger repos can take a minute or two…';
+  results.style.display = 'none';
+  emptyState.style.display = 'block';
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo, horizon_days, train_fraction, top_n: 30 }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Analysis failed.');
+    render(data);
+    statusLine.textContent = `Done — analyzed as of cutoff ${new Date(data.cutoff).toLocaleDateString()}.`;
+  } catch (err) {
+    statusLine.className = 'status-line error';
+    statusLine.textContent = err.message;
+    results.style.display = 'none';
+    emptyState.style.display = 'block';
+    emptyState.textContent = 'No results to show yet.';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function render(data) {
+  emptyState.style.display = 'none';
+  results.style.display = 'block';
+
+  document.getElementById('statFiles').textContent = data.training_files;
+  document.getElementById('statCutoff').textContent = `cutoff ${new Date(data.cutoff).toLocaleDateString()}`;
+  document.getElementById('statPositiveRate').textContent = (data.training_positive_rate * 100).toFixed(1) + '%';
+
+  const best = data.evaluation.find(r => r.model_name === data.best_model) || data.evaluation[0];
+  document.getElementById('statBestModel').textContent = data.best_model === 'random_forest' ? 'Random Forest' : 'Logistic Regression';
+  document.getElementById('statBestF1').textContent = `F1 = ${best.f1.toFixed(3)}`;
+
+  const top = data.top_risk_files[0];
+  if (top) {
+    document.getElementById('statTopRisk').textContent = (top.risk_score * 100).toFixed(0) + '%';
+    document.getElementById('statTopRiskFile').textContent = top.file_path;
+  }
+
+  renderMetricTable(data.evaluation);
+  renderFeatureImportance(data.feature_importances);
+  renderRiskTable(data.top_risk_files);
+}
+
+function metricRow(label, key, rows) {
+  const vals = rows.map(r => r[key]);
+  const max = Math.max(...vals, 0.001);
+  const cellsHtml = rows.map((r, i) => {
+    const color = i === 0 ? 'var(--series-1)' : 'var(--series-2)';
+    const pct = Math.max(2, (r[key] / max) * 100);
+    return `<div class="bar-fill" style="width:${pct}%;background:${color}" title="${r.model_name}: ${r[key].toFixed(3)}"></div>`;
+  }).join('');
+  return `<tr>
+    <td class="metric-name">${label}</td>
+    <td class="bar-cell"><div class="bar-track">${cellsHtml}</div></td>
+    <td class="metric-value">${rows[rows.length-1][key].toFixed(3)}</td>
+  </tr>`;
+}
+
+function renderMetricTable(evaluation) {
+  const rows = [...evaluation].sort((a, b) => (a.model_name === 'random_forest' ? 1 : -1));
+  const tbody = document.querySelector('#metricTable tbody');
+  tbody.innerHTML = [
+    metricRow('Precision', 'precision', rows),
+    metricRow('Recall', 'recall', rows),
+    metricRow('F1', 'f1', rows),
+    metricRow('ROC-AUC', 'roc_auc', rows),
+    metricRow('Avg. Precision', 'average_precision', rows),
+  ].join('');
+}
+
+function renderFeatureImportance(importances) {
+  const entries = Object.entries(importances).slice(0, 8);
+  const max = Math.max(...entries.map(([, v]) => v), 0.001);
+  const container = document.getElementById('featureImportance');
+  container.innerHTML = entries.map(([name, val]) => `
+    <div class="fi-row">
+      <div class="fi-name">${name}</div>
+      <div class="fi-track"><div class="fi-fill" style="width:${Math.max(3, (val/max)*100)}%"></div></div>
+      <div class="fi-value">${val.toFixed(3)}</div>
+    </div>
+  `).join('');
+}
+
+function renderRiskTable(files) {
+  const tbody = document.getElementById('riskTableBody');
+  if (!files.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No files scored.</td></tr>';
+    return;
+  }
+  const max = Math.max(...files.map(f => f.risk_score), 0.001);
+  tbody.innerHTML = files.map((f, i) => {
+    const band = bandFor(f.risk_score);
+    const pct = Math.max(3, (f.risk_score / max) * 100);
+    return `<tr>
+      <td class="rank-cell">${i + 1}</td>
+      <td class="file-cell">${f.file_path}</td>
+      <td><span class="chip"><span class="dot" style="background:${band.color}"></span>${band.label}</span></td>
+      <td class="risk-bar-cell"><div class="risk-track"><div class="risk-fill" style="width:${pct}%;background:${band.color}"></div></div></td>
+      <td class="score-cell">${f.risk_score.toFixed(3)}</td>
+    </tr>`;
+  }).join('');
+}
+</script>
+</body>
+</html>

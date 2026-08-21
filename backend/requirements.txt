@@ -1,0 +1,9 @@
+pydriller==2.7
+radon==6.0.1
+pandas==2.2.3
+scikit-learn==1.5.2
+fastapi==0.115.5
+uvicorn==0.32.1
+joblib==1.4.2
+matplotlib==3.9.2
+pytest==8.3.3

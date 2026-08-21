@@ -117,6 +117,31 @@ def test_refine_drops_label_when_defect_introduced_after_cutoff(bug_repo):
     assert refined.loc[0, "is_bug_prone"] == 0
 
 
+def test_handles_non_ascii_content_without_crashing(tmp_path):
+    # Regression test: subprocess text=True on Windows decodes git output
+    # using the OS codepage (cp1252), not UTF-8, which raises
+    # UnicodeDecodeError on any byte outside that codepage -- observed for
+    # real analyzing Flask's actual history.
+    repo_dir = tmp_path / "unicode_repo"
+    repo_dir.mkdir()
+    _git(repo_dir, "init", "-q", "-b", "master")
+    _git(repo_dir, "config", "user.email", "test@example.com")
+    _git(repo_dir, "config", "user.name", "Test")
+
+    (repo_dir / "f.py").write_text("x = 1  # comment: 日本語\n", encoding="utf-8")
+    _git(repo_dir, "add", "f.py")
+    _git(repo_dir, "commit", "-q", "-m", "add file")
+
+    (repo_dir / "f.py").write_text("x = 2  # comment: 日本語\n", encoding="utf-8")
+    _git(repo_dir, "add", "f.py")
+    _git(repo_dir, "commit", "-q", "-m", "fix: correct the value \U0001f41b")
+    fix_hash = _git(repo_dir, "rev-parse", "HEAD")
+
+    # Must not raise, regardless of what it finds.
+    results = trace_inducing_commits(str(repo_dir), fix_hash, "f.py")
+    assert isinstance(results, list)
+
+
 def test_refine_leaves_negative_labels_untouched(bug_repo):
     cutoff = bug_repo["bug_date"] + timedelta(days=5)
     horizon_end = cutoff + timedelta(days=30)

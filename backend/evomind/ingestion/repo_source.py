@@ -33,7 +33,8 @@ def local_repo_path(repo: str):
             ["git", "clone", "--quiet", repo, tmp_dir],
             check=True,
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         yield tmp_dir
     finally:

@@ -37,7 +37,8 @@ def commit_date_range(repo_path: str) -> tuple[datetime, datetime]:
         ["git", "-C", repo_path, "log", "--format=%aI"],
         check=True,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout
     dates = [datetime.fromisoformat(line).replace(tzinfo=None) for line in out.splitlines() if line]
     if not dates:
@@ -51,7 +52,8 @@ def commit_at_or_before(repo_path: str, cutoff: datetime, ref: str = "HEAD") -> 
         ["git", "-C", repo_path, "rev-list", "-1", f"--before={cutoff.isoformat()}", ref],
         check=True,
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout.strip()
     return out or None
 

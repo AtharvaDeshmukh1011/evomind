@@ -38,12 +38,23 @@ _HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@")
 
 
 def _run_git(repo_path: str, *args: str) -> str:
-    result = subprocess.run(
-        ["git", "-C", repo_path, *args],
-        capture_output=True,
-        text=True,
-    )
-    return result.stdout if result.returncode == 0 else ""
+    # Explicit utf-8 rather than text=True: git output is UTF-8 regardless
+    # of platform, but text=True decodes using the OS default encoding —
+    # cp1252 on Windows — which raises UnicodeDecodeError on any non-ASCII
+    # byte in a commit's content (a real crash observed on real repos).
+    # errors="replace" keeps this a best-effort trace, never a hard failure,
+    # consistent with the rest of this module degrading gracefully rather
+    # than raising when a commit can't be traced.
+    try:
+        result = subprocess.run(
+            ["git", "-C", repo_path, *args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError:
+        return ""
+    return result.stdout if result.returncode == 0 and result.stdout is not None else ""
 
 
 def _single_parent(repo_path: str, commit_hash: str) -> str | None:

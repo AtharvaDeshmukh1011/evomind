@@ -92,14 +92,45 @@
     border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px; font-size: 13px;
     background: var(--surface-page); color: var(--text-primary); font-family: inherit;
   }
+  form.controls input:focus { outline: none; border-color: var(--series-1); }
   form.controls button {
     align-self: end; border: none; border-radius: 7px; background: var(--series-1); color: white;
-    font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer;
+    font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer; transition: opacity 0.15s ease;
   }
+  form.controls button:hover:not(:disabled) { opacity: 0.9; }
   form.controls button:disabled { opacity: 0.55; cursor: default; }
 
   .status-line { font-size: 13px; color: var(--text-secondary); margin: -8px 0 20px; min-height: 18px; }
   .status-line.error { color: var(--status-critical); }
+
+  /* --- progress panel --- */
+  .progress-panel {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; margin-bottom: 20px; display: none;
+  }
+  .progress-panel.active { display: block; }
+  .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .progress-title { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+  .progress-elapsed { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .progress-steps { display: flex; flex-direction: column; gap: 8px; }
+  .progress-step { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-muted); transition: color 0.15s ease; }
+  .progress-step.done { color: var(--text-secondary); }
+  .progress-step.active { color: var(--text-primary); font-weight: 600; }
+  .step-icon {
+    width: 15px; height: 15px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700;
+    border: 1.5px solid var(--gridline); color: white;
+  }
+  .progress-step.done .step-icon { background: var(--status-good); border-color: var(--status-good); }
+  .progress-step.active .step-icon { border-color: var(--series-1); position: relative; }
+  .progress-step.active .step-icon::after {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--series-1);
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) {
+    .progress-step.active .step-icon::after { animation: none; }
+  }
 
   .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
   .stat-tile {
@@ -119,6 +150,15 @@
   .legend { display: flex; gap: 16px; margin-bottom: 12px; }
   .legend .item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
   .legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+  .panel-toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+  .search-input {
+    border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px 6px 28px; font-size: 12.5px;
+    background: var(--surface-page) url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="%23898781" stroke-width="2.2"%3E%3Ccircle cx="11" cy="11" r="7"/%3E%3Cline x1="21" y1="21" x2="16.65" y2="16.65"/%3E%3C/svg%3E') no-repeat 8px center;
+    color: var(--text-primary); width: 220px; font-family: inherit;
+  }
+  .search-input:focus { outline: none; border-color: var(--series-1); }
+  .row-count { font-size: 11.5px; color: var(--text-muted); align-self: center; margin-right: auto; }
 
   table.metric-table { width: 100%; border-collapse: collapse; }
   table.metric-table th {
@@ -142,10 +182,16 @@
   table.risk-table { width: 100%; border-collapse: collapse; }
   table.risk-table th {
     text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600;
-    padding: 0 8px 8px; border-bottom: 1px solid var(--gridline); cursor: default;
+    padding: 0 8px 8px; border-bottom: 1px solid var(--gridline); cursor: default; white-space: nowrap;
   }
+  table.risk-table th.sortable { cursor: pointer; user-select: none; }
+  table.risk-table th.sortable:hover { color: var(--text-secondary); }
+  table.risk-table th.sort-asc::after { content: ' \25B2'; font-size: 8px; }
+  table.risk-table th.sort-desc::after { content: ' \25BC'; font-size: 8px; }
   table.risk-table td { padding: 8px; border-bottom: 1px solid var(--gridline); font-size: 12.5px; vertical-align: middle; }
   table.risk-table tr:last-child td { border-bottom: none; }
+  table.risk-table tbody tr { transition: background 0.1s ease; }
+  table.risk-table tbody tr:hover { background: var(--surface-page); }
   .rank-cell { color: var(--text-muted); width: 28px; font-variant-numeric: tabular-nums; }
   .file-cell { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--text-primary); }
   .risk-bar-cell { width: 140px; }
@@ -158,6 +204,7 @@
   .ai-btn {
     border: 1px solid var(--border); background: var(--surface-page); color: var(--text-secondary);
     border-radius: 6px; padding: 4px 9px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: color 0.15s ease, border-color 0.15s ease;
   }
   .ai-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
 
@@ -211,10 +258,15 @@
     font-size: 11.5px; color: var(--text-muted); border-top: 1px dashed var(--gridline); margin-top: 14px; padding-top: 10px;
   }
 
+  #results { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { #results { animation: none; } }
+
   @media (max-width: 720px) {
     form.controls { grid-template-columns: 1fr; }
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
     .fi-row { grid-template-columns: 110px 1fr 44px; }
+    .search-input { width: 100%; }
   }
 </style>
 </head>
@@ -240,6 +292,14 @@
     </label>
     <button type="submit" id="analyzeBtn">Analyze</button>
   </form>
+
+  <div class="progress-panel" id="progressPanel">
+    <div class="progress-header">
+      <div class="progress-title">Analyzing…</div>
+      <div class="progress-elapsed" id="progressElapsed">0s</div>
+    </div>
+    <div class="progress-steps" id="progressSteps"></div>
+  </div>
   <div class="status-line" id="statusLine"></div>
 
   <div id="results" style="display:none;">
@@ -284,9 +344,22 @@
 
     <div class="panel">
       <h2>Current risk ranking</h2>
-      <p class="desc">Files scored by the trained model against the repository's latest state.</p>
+      <p class="desc">Files scored by the trained model against the repository's latest state. Click a column to sort.</p>
+      <div class="panel-toolbar">
+        <span class="row-count" id="riskRowCount"></span>
+        <input type="search" id="riskSearch" class="search-input" placeholder="Filter by filename…" />
+      </div>
       <table class="risk-table">
-        <thead><tr><th>#</th><th>File</th><th>Risk</th><th></th><th>Score</th><th></th></tr></thead>
+        <thead id="riskTableHead">
+          <tr>
+            <th>#</th>
+            <th class="sortable" data-sort="file_path" data-sort-default="asc">File</th>
+            <th>Risk</th>
+            <th></th>
+            <th class="sortable sort-desc" data-sort="risk_score" data-sort-default="desc">Score</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody id="riskTableBody"></tbody>
       </table>
       <div class="caveat">
@@ -306,8 +379,20 @@
         Instability = efferent / (efferent + afferent): closer to 1 means the file depends on much more than
         depends on it (easy to change); closer to 0 means many files depend on it (risky to change).
       </p>
+      <div class="panel-toolbar">
+        <span class="row-count" id="couplingRowCount"></span>
+        <input type="search" id="couplingSearch" class="search-input" placeholder="Filter by filename…" />
+      </div>
       <table class="risk-table" id="couplingTable">
-        <thead><tr><th>File</th><th>Depended on by</th><th>Depends on</th><th>Instability</th><th></th></tr></thead>
+        <thead id="couplingTableHead">
+          <tr>
+            <th class="sortable" data-sort="file_path" data-sort-default="asc">File</th>
+            <th class="sortable" data-sort="afferent" data-sort-default="desc">Depended on by</th>
+            <th class="sortable" data-sort="efferent" data-sort-default="desc">Depends on</th>
+            <th class="sortable sort-desc" data-sort="instability" data-sort-default="desc">Instability</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody id="couplingTableBody"></tbody>
       </table>
       <div id="cyclesSection" style="display:none;">
@@ -362,7 +447,55 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
 });
 
-form.addEventListener('submit', async (e) => {
+/* ---------------- progress panel ---------------- */
+
+const progressPanel = document.getElementById('progressPanel');
+const progressSteps = document.getElementById('progressSteps');
+const progressElapsedEl = document.getElementById('progressElapsed');
+let progressStartTime = null;
+let progressTimerId = null;
+
+function resetProgress() {
+  progressSteps.innerHTML = '';
+  progressStartTime = Date.now();
+  updateElapsed();
+  if (progressTimerId) clearInterval(progressTimerId);
+  progressTimerId = setInterval(updateElapsed, 1000);
+  progressPanel.classList.add('active');
+}
+
+function updateElapsed() {
+  const secs = Math.floor((Date.now() - progressStartTime) / 1000);
+  progressElapsedEl.textContent = secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m ${secs % 60}s`;
+}
+
+function markLastStepDone() {
+  const prevEl = progressSteps.lastElementChild;
+  if (prevEl && prevEl.classList.contains('active')) {
+    prevEl.classList.remove('active');
+    prevEl.classList.add('done');
+    prevEl.querySelector('.step-icon').textContent = '✓';
+  }
+}
+
+function addProgressStep(message) {
+  markLastStepDone();
+  const div = document.createElement('div');
+  div.className = 'progress-step active';
+  div.innerHTML = `<span class="step-icon"></span><span></span>`;
+  div.lastElementChild.textContent = message;
+  progressSteps.appendChild(div);
+}
+
+function finishProgress() {
+  if (progressTimerId) { clearInterval(progressTimerId); progressTimerId = null; }
+  markLastStepDone();
+  progressPanel.classList.remove('active');
+}
+
+/* ---------------- analyze (SSE) ---------------- */
+
+form.addEventListener('submit', (e) => {
   e.preventDefault();
   const repo = document.getElementById('repo').value.trim();
   const horizon_days = parseInt(document.getElementById('horizon').value, 10);
@@ -371,31 +504,56 @@ form.addEventListener('submit', async (e) => {
 
   btn.disabled = true;
   statusLine.className = 'status-line';
-  statusLine.textContent = 'Mining repository history and training models — this walks the full commit log twice, so larger repos can take a minute or two…';
+  statusLine.textContent = '';
   results.style.display = 'none';
-  emptyState.style.display = 'block';
+  emptyState.style.display = 'none';
+  resetProgress();
 
-  try {
-    const res = await fetch('/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ repo, horizon_days, train_fraction, top_n: 30 }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Analysis failed.');
+  const params = new URLSearchParams({ repo, horizon_days, train_fraction, top_n: 30 });
+  const es = new EventSource(`/analyze/stream?${params.toString()}`);
+
+  es.addEventListener('progress', (ev) => {
+    const data = JSON.parse(ev.data);
+    addProgressStep(data.message);
+  });
+
+  es.addEventListener('result', (ev) => {
+    const data = JSON.parse(ev.data);
+    finishProgress();
     currentRepo = repo;
     render(data);
     statusLine.textContent = `Done — analyzed as of cutoff ${new Date(data.cutoff).toLocaleDateString()}.`;
-  } catch (err) {
+    btn.disabled = false;
+    es.close();
+  });
+
+  es.addEventListener('error', (ev) => {
+    // Two things share the name "error": our own server-sent {status, detail}
+    // event, and the browser's native connection-failure event (no ev.data).
+    finishProgress();
+    let message = 'Analysis failed — connection to the server was lost.';
+    if (ev.data) {
+      try { message = JSON.parse(ev.data).detail || message; } catch (_) { /* keep default */ }
+    }
     statusLine.className = 'status-line error';
-    statusLine.textContent = err.message;
+    statusLine.textContent = message;
     results.style.display = 'none';
     emptyState.style.display = 'block';
     emptyState.textContent = 'No results to show yet.';
-  } finally {
     btn.disabled = false;
-  }
+    es.close();
+  });
 });
+
+/* ---------------- render ---------------- */
+
+let riskFilesData = [];
+let riskSort = { key: 'risk_score', dir: 'desc' };
+let riskFilter = '';
+
+let coupledFilesData = [];
+let couplingSort = { key: 'instability', dir: 'desc' };
+let couplingFilter = '';
 
 function render(data) {
   emptyState.style.display = 'none';
@@ -417,8 +575,21 @@ function render(data) {
 
   renderMetricTable(data.evaluation);
   renderFeatureImportance(data.feature_importances);
-  renderRiskTable(data.top_risk_files);
-  renderCoupling(data);
+
+  // Fixed "original rank" survives re-sorting/filtering, so "#" always means
+  // "this file's position in the model's own risk ranking," not "position
+  // in whatever view you're currently looking at."
+  riskFilesData = data.top_risk_files.map((f, i) => ({ ...f, originalRank: i + 1 }));
+  riskFilter = '';
+  document.getElementById('riskSearch').value = '';
+  applyRiskView();
+
+  coupledFilesData = data.most_coupled_files;
+  couplingFilter = '';
+  document.getElementById('couplingSearch').value = '';
+  document.getElementById('depEdgeCount').textContent = data.dependency_edge_count;
+  applyCouplingView();
+  renderCycles(data.cyclic_groups);
 }
 
 function metricRow(label, key, rows) {
@@ -461,18 +632,74 @@ function renderFeatureImportance(importances) {
   `).join('');
 }
 
+/* ---------------- sortable / filterable tables ---------------- */
+
+function sortRows(rows, key, dir) {
+  return [...rows].sort((a, b) => {
+    const av = a[key], bv = b[key];
+    const cmp = typeof av === 'string' ? av.localeCompare(bv) : av - bv;
+    return dir === 'asc' ? cmp : -cmp;
+  });
+}
+
+function wireSortableHeaders(theadEl, state, applyFn) {
+  theadEl.querySelectorAll('th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      if (state.key === key) {
+        state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.key = key;
+        state.dir = th.dataset.sortDefault || 'desc';
+      }
+      theadEl.querySelectorAll('th[data-sort]').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+      th.classList.add(state.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+      applyFn();
+    });
+  });
+}
+wireSortableHeaders(document.getElementById('riskTableHead'), riskSort, applyRiskView);
+wireSortableHeaders(document.getElementById('couplingTableHead'), couplingSort, applyCouplingView);
+
+document.getElementById('riskSearch').addEventListener('input', (e) => {
+  riskFilter = e.target.value.trim().toLowerCase();
+  applyRiskView();
+});
+document.getElementById('couplingSearch').addEventListener('input', (e) => {
+  couplingFilter = e.target.value.trim().toLowerCase();
+  applyCouplingView();
+});
+
+function applyRiskView() {
+  let rows = riskFilesData;
+  if (riskFilter) rows = rows.filter(f => f.file_path.toLowerCase().includes(riskFilter));
+  rows = sortRows(rows, riskSort.key, riskSort.dir);
+  document.getElementById('riskRowCount').textContent =
+    riskFilesData.length ? `${rows.length} of ${riskFilesData.length} files` : '';
+  renderRiskTable(rows);
+}
+
+function applyCouplingView() {
+  let rows = coupledFilesData;
+  if (couplingFilter) rows = rows.filter(f => f.file_path.toLowerCase().includes(couplingFilter));
+  rows = sortRows(rows, couplingSort.key, couplingSort.dir);
+  document.getElementById('couplingRowCount').textContent =
+    coupledFilesData.length ? `${rows.length} of ${coupledFilesData.length} files` : '';
+  renderCoupling(rows);
+}
+
 function renderRiskTable(files) {
   const tbody = document.getElementById('riskTableBody');
   if (!files.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No files scored.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${riskFilesData.length ? 'No files match that filter.' : 'No files scored.'}</td></tr>`;
     return;
   }
   const max = Math.max(...files.map(f => f.risk_score), 0.001);
-  tbody.innerHTML = files.map((f, i) => {
+  tbody.innerHTML = files.map((f) => {
     const band = bandFor(f.risk_score);
     const pct = Math.max(3, (f.risk_score / max) * 100);
     return `<tr>
-      <td class="rank-cell">${i + 1}</td>
+      <td class="rank-cell">${f.originalRank}</td>
       <td class="file-cell">${f.file_path}</td>
       <td><span class="chip"><span class="dot" style="background:${band.color}"></span>${band.label}</span></td>
       <td class="risk-bar-cell"><div class="risk-track"><div class="risk-fill" style="width:${pct}%;background:${band.color}"></div></div></td>
@@ -486,37 +713,38 @@ function renderRiskTable(files) {
   });
 }
 
-function renderCoupling(data) {
-  document.getElementById('depEdgeCount').textContent = data.dependency_edge_count;
-
+function renderCoupling(files) {
   const tbody = document.getElementById('couplingTableBody');
-  const files = data.most_coupled_files;
   if (!files.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No intra-repo import edges found.</td></tr>';
-  } else {
-    tbody.innerHTML = files.map(f => {
-      const pct = Math.max(3, f.instability * 100);
-      return `<tr>
-        <td class="file-cell">${f.file_path}</td>
-        <td class="coupling-num">${f.afferent}</td>
-        <td class="coupling-num">${f.efferent}</td>
-        <td class="risk-bar-cell"><div class="risk-track"><div class="risk-fill" style="width:${pct}%;background:var(--series-1)"></div></div></td>
-        <td class="score-cell">${f.instability.toFixed(2)}</td>
-      </tr>`;
-    }).join('');
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${coupledFilesData.length ? 'No files match that filter.' : 'No intra-repo import edges found.'}</td></tr>`;
+    return;
   }
+  tbody.innerHTML = files.map(f => {
+    const pct = Math.max(3, f.instability * 100);
+    return `<tr>
+      <td class="file-cell">${f.file_path}</td>
+      <td class="coupling-num">${f.afferent}</td>
+      <td class="coupling-num">${f.efferent}</td>
+      <td class="risk-bar-cell"><div class="risk-track"><div class="risk-fill" style="width:${pct}%;background:var(--series-1)"></div></div></td>
+      <td class="score-cell">${f.instability.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
 
+function renderCycles(cyclicGroups) {
   const cyclesSection = document.getElementById('cyclesSection');
   const cyclesList = document.getElementById('cyclesList');
-  if (data.cyclic_groups && data.cyclic_groups.length) {
+  if (cyclicGroups && cyclicGroups.length) {
     cyclesSection.style.display = 'block';
-    cyclesList.innerHTML = data.cyclic_groups.map(group =>
+    cyclesList.innerHTML = cyclicGroups.map(group =>
       `<div class="cycle-chip">${group.map(f => `<span>${f}</span>`).join(' <span class="arrow">&harr;</span> ')}</div>`
     ).join('');
   } else {
     cyclesSection.style.display = 'none';
   }
 }
+
+/* ---------------- AI recommendation modal ---------------- */
 
 const recModal = document.getElementById('recModal');
 const recBody = document.getElementById('recBody');

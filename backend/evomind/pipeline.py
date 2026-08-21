@@ -6,6 +6,7 @@ service (evomind/api/main.py) so the two entry points can't drift apart.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -44,12 +45,19 @@ def run_pipeline(
     repo: str,
     horizon_days: int = 365,
     train_fraction: float = 0.65,
+    on_progress: Callable[[str], None] | None = None,
 ) -> PipelineResult:
+    def report_progress(message: str) -> None:
+        if on_progress is not None:
+            on_progress(message)
+
     with local_repo_path(repo) as path:
+        report_progress("Cloning repository…")
         start, end = commit_date_range(path)
         cutoff = start + (end - start) * train_fraction
         horizon_end = cutoff + timedelta(days=horizon_days)
 
+        report_progress("Mining commit history…")
         mined = mine_repository(path)
 
         if not mined.records:
@@ -59,20 +67,25 @@ def run_pipeline(
         # replay — see tree_snapshot.py for why the replay approach silently
         # corrupts content under non-linear history (a branch predating a
         # rename, merged after it, "resurrects" the renamed-away path).
+        report_progress("Reading code at the training cutoff…")
         cutoff_commit = commit_at_or_before(path, cutoff)
         if cutoff_commit is None:
             raise ValueError(
                 f"Could not resolve a commit at or before {cutoff.isoformat()} in '{repo}'."
             )
         cutoff_snapshots = read_files_at_commit(path, cutoff_commit)
+
+        report_progress("Reading the repository's current state…")
         latest_snapshots = read_files_at_commit(path, "HEAD")
 
+        report_progress("Computing code metrics and building features…")
         train_df = build_feature_table(mined, cutoff=cutoff, snapshots=cutoff_snapshots, horizon_days=horizon_days)
 
         # SZZ needs `git blame`/`git diff` against the local clone, so this
         # has to run before the `with` block exits and the clone is cleaned
         # up. Keeps only the labels whose underlying defect actually existed
         # at cutoff — see szz.py for why the naive heuristic overcounts.
+        report_progress("Tracing bug-inducing commits (SZZ)…")
         train_df = refine_labels_with_szz(train_df, mined.records, path, cutoff, horizon_end)
 
     if len(train_df) < 20 or train_df["is_bug_prone"].nunique() < 2:
@@ -83,10 +96,12 @@ def run_pipeline(
             "longer horizon_days, or an earlier train_fraction."
         )
 
+    report_progress("Training Random Forest and Logistic Regression models…")
     report = train_and_evaluate(train_df)
 
     # Score the repo's current state (as of `end`) with no future horizon to
     # label against — this is the actual "predict what's risky now" output.
+    report_progress("Scoring the repository's current files…")
     current_df = build_feature_table(
         mined, cutoff=end, snapshots=latest_snapshots, horizon_days=0
     )
@@ -95,9 +110,12 @@ def run_pipeline(
         "risk_score", ascending=False
     )
 
+    report_progress("Building the dependency graph…")
     dep_graph = build_dependency_graph(latest_snapshots)
     coupling = compute_coupling(dep_graph)
     cyclic_groups = find_cyclic_groups(dep_graph)
+
+    report_progress("Done.")
 
     return PipelineResult(
         repo=repo,

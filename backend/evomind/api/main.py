@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import queue
+import threading
 from pathlib import Path
+from typing import Iterator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from evomind.llm.recommend import RecommendationError, generate_recommendation
@@ -108,25 +112,12 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
-def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    try:
-        result = run_pipeline(
-            repo=req.repo,
-            horizon_days=req.horizon_days,
-            train_fraction=req.train_fraction,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    _last_result.clear()  # single-demo cache: only ever keep the latest analysis
-    _last_result[req.repo] = result
-
-    top_risk = result.file_risk_scores.head(req.top_n)
+def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeResponse:
+    top_risk = result.file_risk_scores.head(top_n)
 
     most_coupled = sorted(
         result.coupling, key=lambda c: c.afferent + c.efferent, reverse=True
-    )[:req.top_n]
+    )[:top_n]
 
     return AnalyzeResponse(
         repo=result.repo,
@@ -153,6 +144,87 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
             if c.afferent + c.efferent > 0
         ],
         cyclic_groups=result.cyclic_groups,
+    )
+
+
+@app.post("/analyze", response_model=AnalyzeResponse)
+def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
+    try:
+        result = run_pipeline(
+            repo=req.repo,
+            horizon_days=req.horizon_days,
+            train_fraction=req.train_fraction,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    _last_result.clear()  # single-demo cache: only ever keep the latest analysis
+    _last_result[req.repo] = result
+
+    return _build_analyze_response(result, req.top_n)
+
+
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+@app.get("/analyze/stream")
+def analyze_stream(
+    repo: str,
+    horizon_days: int = 365,
+    train_fraction: float = 0.65,
+    top_n: int = 25,
+) -> StreamingResponse:
+    """Same analysis as POST /analyze, but streamed as Server-Sent Events so
+    the dashboard can show real progress during the ~1-3 minute run instead
+    of a static "please wait" message. `EventSource` only supports GET, so
+    parameters travel in the query string rather than a JSON body.
+    """
+
+    def generate() -> Iterator[str]:
+        events: queue.Queue = queue.Queue()
+        outcome: dict = {}
+
+        def worker() -> None:
+            try:
+                result = run_pipeline(
+                    repo=repo,
+                    horizon_days=horizon_days,
+                    train_fraction=train_fraction,
+                    on_progress=lambda message: events.put(("progress", message)),
+                )
+                outcome["result"] = result
+            except ValueError as exc:
+                outcome["error"] = (422, str(exc))
+            except Exception as exc:  # noqa: BLE001 — must reach the client as an SSE error, not crash the stream
+                outcome["error"] = (500, f"Unexpected error: {exc}")
+            finally:
+                events.put(("finished", None))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+        while True:
+            kind, payload = events.get()
+            if kind == "progress":
+                yield _sse("progress", {"message": payload})
+            else:
+                break
+
+        if "error" in outcome:
+            status, detail = outcome["error"]
+            yield _sse("error", {"status": status, "detail": detail})
+            return
+
+        result = outcome["result"]
+        _last_result.clear()
+        _last_result[repo] = result
+        response = _build_analyze_response(result, top_n)
+        yield _sse("result", response.model_dump())
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 

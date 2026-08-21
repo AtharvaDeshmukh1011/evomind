@@ -185,12 +185,17 @@ one).
 .venv/Scripts/python.exe -m uvicorn evomind.api.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/` for the dashboard (repo input, model
-evaluation, feature importances, live risk ranking, architectural coupling +
-circular dependencies, "AI recommendation" button per file — light/dark).
-Or call `POST /analyze` directly with `{"repo": "https://github.com/pallets/flask"}`,
-then `POST /recommend` with `{"repo": "...", "file_path": "..."}` for one
-file's suggestions. Interactive API docs at `http://127.0.0.1:8000/docs`.
+Open `http://127.0.0.1:8000/` for the dashboard (repo input, **live progress
+during analysis**, model evaluation, feature importances, sortable/
+filterable risk ranking, architectural coupling + circular dependencies
+(also sortable/filterable), "AI recommendation" button per file — light/
+dark). The dashboard drives `GET /analyze/stream` (Server-Sent Events) so
+the ~1–3 minute wait shows real per-stage progress — "Mining commit
+history…", "Tracing bug-inducing commits (SZZ)…", etc. — instead of a
+static message; `POST /analyze` (used by `scripts/run_pipeline.py` and
+tests) returns the same result as one JSON blob, no streaming, for
+programmatic use. Then `POST /recommend` with `{"repo": "...", "file_path": "..."}`
+for one file's suggestions. Interactive API docs at `http://127.0.0.1:8000/docs`.
 
 **Expect roughly 1–3 minutes per analysis** — it walks the repo's full
 commit history once (cloning it locally first so nothing is fetched twice).

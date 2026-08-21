@@ -91,20 +91,7 @@ def _evaluate(name: str, model, X_test, y_test) -> EvalResult:
     )
 
 
-def train_and_evaluate(
-    df: pd.DataFrame,
-    test_size: float = 0.3,
-    random_state: int = 42,
-    model_out_path: str | None = None,
-) -> TrainingReport:
-    X = df[FEATURE_COLUMNS]
-    y = df[LABEL_COLUMN]
-
-    stratify = y if y.nunique() > 1 else None
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=stratify
-    )
-
+def _fit_models(X_train: pd.DataFrame, y_train: pd.Series, random_state: int):
     baseline = Pipeline(
         [
             ("scale", StandardScaler()),
@@ -125,7 +112,10 @@ def train_and_evaluate(
         n_jobs=-1,
     )
     forest.fit(X_train, y_train)
+    return baseline, forest
 
+
+def _build_report(baseline, forest, X_test: pd.DataFrame, y_test: pd.Series) -> TrainingReport:
     report = TrainingReport()
     report.results.append(_evaluate("logistic_regression_baseline", baseline, X_test, y_test))
     report.results.append(_evaluate("random_forest", forest, X_test, y_test))
@@ -138,6 +128,32 @@ def train_and_evaluate(
         )
     )
     report.model = forest
+    return report
+
+
+def train_and_evaluate(
+    df: pd.DataFrame,
+    test_size: float = 0.3,
+    random_state: int = 42,
+    model_out_path: str | None = None,
+) -> TrainingReport:
+    """Single random (stratified) train/test split within one snapshot.
+
+    Fast enough for interactive use, but the split is arbitrary with respect
+    to time — see `train_on_evaluate_on` for temporal (rolling-origin)
+    validation instead, which is closer to what rigorous defect-prediction
+    papers use but requires multiple already-computed feature tables.
+    """
+    X = df[FEATURE_COLUMNS]
+    y = df[LABEL_COLUMN]
+
+    stratify = y if y.nunique() > 1 else None
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=stratify
+    )
+
+    baseline, forest = _fit_models(X_train, y_train, random_state)
+    report = _build_report(baseline, forest, X_test, y_test)
 
     if model_out_path:
         joblib.dump(
@@ -146,3 +162,20 @@ def train_and_evaluate(
         )
 
     return report
+
+
+def train_on_evaluate_on(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    random_state: int = 42,
+) -> TrainingReport:
+    """Trains fresh models on all of `train_df` and evaluates purely on
+    `test_df` — no internal split, since train/test here are already two
+    different time periods (rolling-origin / walk-forward validation),
+    rather than an arbitrary random partition of one snapshot.
+    """
+    X_train, y_train = train_df[FEATURE_COLUMNS], train_df[LABEL_COLUMN]
+    X_test, y_test = test_df[FEATURE_COLUMNS], test_df[LABEL_COLUMN]
+
+    baseline, forest = _fit_models(X_train, y_train, random_state)
+    return _build_report(baseline, forest, X_test, y_test)

@@ -44,6 +44,11 @@ class AnalyzeRequest(BaseModel):
     horizon_days: int = Field(365, ge=30, le=1825, description="Future window used to label bug-proneness during training")
     train_fraction: float = Field(0.65, gt=0.1, lt=0.95, description="Fraction of history used before the training cutoff")
     top_n: int = Field(25, ge=1, le=500, description="Number of highest-risk files to return")
+    use_llm_szz: bool = Field(
+        False,
+        description="LLM4SZZ-style false-positive filtering on top of blame-based SZZ tracing. "
+        "Needs ANTHROPIC_API_KEY; silently no-ops (falls back to plain SZZ) without one.",
+    )
 
 
 class ModelEval(BaseModel):
@@ -82,6 +87,8 @@ class AnalyzeResponse(BaseModel):
     dependency_edge_count: int
     most_coupled_files: list[CoupledFile]
     cyclic_groups: list[list[str]]
+    llm_szz_assessed: int | None = None  # None unless use_llm_szz was requested
+    llm_szz_fallback: int | None = None  # candidates the LLM call failed for (e.g. no API key)
 
 
 class RecommendRequest(BaseModel):
@@ -144,6 +151,8 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
             if c.afferent + c.efferent > 0
         ],
         cyclic_groups=result.cyclic_groups,
+        llm_szz_assessed=result.llm_szz_stats.assessed if result.llm_szz_stats else None,
+        llm_szz_fallback=result.llm_szz_stats.fallback if result.llm_szz_stats else None,
     )
 
 
@@ -154,6 +163,7 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
             repo=req.repo,
             horizon_days=req.horizon_days,
             train_fraction=req.train_fraction,
+            use_llm_szz=req.use_llm_szz,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -174,6 +184,7 @@ def analyze_stream(
     horizon_days: int = 365,
     train_fraction: float = 0.65,
     top_n: int = 25,
+    use_llm_szz: bool = False,
 ) -> StreamingResponse:
     """Same analysis as POST /analyze, but streamed as Server-Sent Events so
     the dashboard can show real progress during the ~1-3 minute run instead
@@ -192,6 +203,7 @@ def analyze_stream(
                     horizon_days=horizon_days,
                     train_fraction=train_fraction,
                     on_progress=lambda message: events.put(("progress", message)),
+                    use_llm_szz=use_llm_szz,
                 )
                 outcome["result"] = result
             except ValueError as exc:

@@ -42,6 +42,11 @@ Module**, end to end, on real repositories.
    it, a defect introduced *after* the cutoff but fixed within the horizon
    would count as "predictable," even though no cutoff-time model could ever
    have seen evidence of it. See "Why SZZ, not just keyword-matching" below.
+   Optionally (`use_llm_szz=True`), each blame-identified candidate is
+   additionally assessed by an LLM before being accepted
+   (`evomind/labeling/llm_szz.py`), filtering out false positives blame
+   alone can't distinguish from a real inducing change (a formatting pass,
+   a rename, an unrelated refactor). See "LLM-assisted SZZ" below.
 6. Trains a Random Forest against a Logistic Regression baseline
    (`evomind/ml/train.py`), evaluated on a held-out split with precision,
    recall, F1, ROC-AUC, and average precision. A separate, opt-in
@@ -114,6 +119,42 @@ cosmetic "fixes" that happen to match the bug-fix keyword regex aren't
 special-cased). `tests/test_szz.py` covers the tracing logic against a real
 git repo (not mocked), including the leakage regression case directly.
 
+### LLM-assisted SZZ (opt-in)
+
+Plain SZZ has its own known weakness: `git blame` is a purely line-level
+heuristic, so "the commit that last touched these lines" is often *not*
+the commit that actually introduced the defect — it can be a formatting
+pass, a rename, or an unrelated refactor that happened to touch the same
+line. `evomind/labeling/llm_szz.py` addresses this by giving an LLM both
+the fix's diff and each blame-identified candidate's own diff, and asking
+it to assess whether the candidate is a plausible genuine cause or a false
+positive — following **LLM4SZZ** (Zhou et al., 2025 —
+[arXiv:2504.01404](https://arxiv.org/abs/2504.01404), ACM Proceedings on
+Software Engineering), which reports this approach beating heuristic-only
+SZZ baselines by 6.9–16% F1. Related work exploring similar LLM-assisted
+SZZ variants: AgenticSZZ, AgentSZZ, MAS-SZZ. **This is an applied technique
+following a published approach, not a novel contribution of this
+project** — worth being explicit about in a report or defense rather than
+overclaiming it.
+
+Design notes:
+- **Only filters, never adds.** A candidate the LLM confirms is exactly
+  what plain SZZ would have accepted anyway; a candidate it rejects is
+  removed. It can never surface a bug-inducing commit blame-based tracing
+  didn't already find.
+- **Bounded cost, same scope as plain SZZ.** Only positively-labeled files
+  are considered, and a candidate is only sent to the LLM if it already
+  passes the cutoff-date check — no LLM call is spent on a candidate the
+  date alone already disqualifies.
+- **Opt-in, not automatic** (`use_llm_szz=True` on `run_pipeline`, or the
+  checkbox in the dashboard). Needs `ANTHROPIC_API_KEY`; without one, every
+  candidate falls back to plain-SZZ behavior (accepted, since it already
+  passed the date check) rather than crashing or silently dropping a label
+  plain SZZ would have kept. `AssessmentStats` (`assessed` vs. `fallback`
+  counts) makes this visible rather than silent — the dashboard shows a
+  warning if every candidate fell back, so "I turned this on and it didn't
+  error" is never confused with "it actually ran."
+
 ### Rolling-origin evaluation
 
 The main pipeline's `train_and_evaluate` does a single random (stratified)
@@ -153,16 +194,19 @@ python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 ```
 
-For the "AI recommendation" button/`/recommend` endpoint, set an Anthropic
-API key (the ML pipeline, dashboard, and `/analyze` all work fine without
-one — this is only needed for LLM-generated refactoring suggestions):
+For the "AI recommendation" button/`/recommend` endpoint, and for the
+opt-in "Use LLM-assisted SZZ" checkbox, set an Anthropic API key (the ML
+pipeline, dashboard, and `/analyze` all work fine without one — a key is
+only needed for these two LLM-backed features):
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...   # PowerShell: $env:ANTHROPIC_API_KEY = "sk-ant-..."
 ```
 
 Without a key, `/recommend` fails with a clear 502 error message rather
-than crashing — safe to leave unset while demoing the rest of the system.
+than crashing; LLM-assisted SZZ falls back to plain SZZ (with a visible
+warning in the dashboard) rather than failing at all — both safe to leave
+unset while demoing the rest of the system.
 
 ## Run the pipeline from the CLI
 
@@ -186,16 +230,17 @@ one).
 ```
 
 Open `http://127.0.0.1:8000/` for the dashboard (repo input, **live progress
-during analysis**, model evaluation, feature importances, sortable/
-filterable risk ranking, architectural coupling + circular dependencies
-(also sortable/filterable), "AI recommendation" button per file — light/
-dark). The dashboard drives `GET /analyze/stream` (Server-Sent Events) so
-the ~1–3 minute wait shows real per-stage progress — "Mining commit
-history…", "Tracing bug-inducing commits (SZZ)…", etc. — instead of a
-static message; `POST /analyze` (used by `scripts/run_pipeline.py` and
-tests) returns the same result as one JSON blob, no streaming, for
-programmatic use. Then `POST /recommend` with `{"repo": "...", "file_path": "..."}`
-for one file's suggestions. Interactive API docs at `http://127.0.0.1:8000/docs`.
+during analysis**, an opt-in "Use LLM-assisted SZZ" checkbox, model
+evaluation, feature importances, sortable/filterable risk ranking,
+architectural coupling + circular dependencies (also sortable/filterable),
+"AI recommendation" button per file — light/dark). The dashboard drives
+`GET /analyze/stream` (Server-Sent Events) so the ~1–3 minute wait shows
+real per-stage progress — "Mining commit history…", "Tracing bug-inducing
+commits (SZZ)…", etc. — instead of a static message; `POST /analyze` (used
+by `scripts/run_pipeline.py` and tests) returns the same result as one
+JSON blob, no streaming, for programmatic use — both accept `use_llm_szz`.
+Then `POST /recommend` with `{"repo": "...", "file_path": "..."}` for one
+file's suggestions. Interactive API docs at `http://127.0.0.1:8000/docs`.
 
 **Expect roughly 1–3 minutes per analysis** — it walks the repo's full
 commit history once (cloning it locally first so nothing is fetched twice).

@@ -52,7 +52,7 @@ def _parse_sse(body: str) -> list[tuple[str, str]]:
     return events
 
 
-def _fake_run_pipeline(*, repo, horizon_days, train_fraction, on_progress=None):
+def _fake_run_pipeline(*, repo, horizon_days, train_fraction, on_progress=None, use_llm_szz=False):
     if on_progress:
         on_progress("Mining commit history…")
         on_progress("Training models…")

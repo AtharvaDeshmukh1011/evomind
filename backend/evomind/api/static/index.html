@@ -100,6 +100,15 @@
   form.controls button:hover:not(:disabled) { opacity: 0.9; }
   form.controls button:disabled { opacity: 0.55; cursor: default; }
 
+  .checkbox-row {
+    grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 7px;
+    font-size: 12px; color: var(--text-secondary); margin-top: 2px; cursor: pointer;
+  }
+  .checkbox-row input[type="checkbox"] { width: 14px; height: 14px; margin-top: 1px; accent-color: var(--series-1); cursor: pointer; flex-shrink: 0; }
+  .checkbox-row .hint { color: var(--text-muted); }
+  .checkbox-row a { color: var(--text-secondary); }
+  .checkbox-row code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 11px; }
+
   .status-line { font-size: 13px; color: var(--text-secondary); margin: -8px 0 20px; min-height: 18px; }
   .status-line.error { color: var(--status-critical); }
 
@@ -291,6 +300,12 @@
       <input type="number" id="trainFraction" value="0.65" min="0.1" max="0.95" step="0.05" />
     </label>
     <button type="submit" id="analyzeBtn">Analyze</button>
+    <label class="checkbox-row">
+      <input type="checkbox" id="useLlmSzz" />
+      <span>Use LLM-assisted SZZ <span class="hint">— filters blame false-positives via Claude, following
+        <a href="https://arxiv.org/abs/2504.01404" target="_blank" rel="noopener">LLM4SZZ</a>; needs
+        <code>ANTHROPIC_API_KEY</code>, otherwise falls back to plain SZZ automatically</span></span>
+    </label>
   </form>
 
   <div class="progress-panel" id="progressPanel">
@@ -345,6 +360,7 @@
     <div class="panel">
       <h2>Current risk ranking</h2>
       <p class="desc">Files scored by the trained model against the repository's latest state. Click a column to sort.</p>
+      <p class="desc" id="llmSzzNote" style="display:none;"></p>
       <div class="panel-toolbar">
         <span class="row-count" id="riskRowCount"></span>
         <input type="search" id="riskSearch" class="search-input" placeholder="Filter by filename…" />
@@ -500,6 +516,7 @@ form.addEventListener('submit', (e) => {
   const repo = document.getElementById('repo').value.trim();
   const horizon_days = parseInt(document.getElementById('horizon').value, 10);
   const train_fraction = parseFloat(document.getElementById('trainFraction').value);
+  const use_llm_szz = document.getElementById('useLlmSzz').checked;
   if (!repo) return;
 
   btn.disabled = true;
@@ -509,7 +526,7 @@ form.addEventListener('submit', (e) => {
   emptyState.style.display = 'none';
   resetProgress();
 
-  const params = new URLSearchParams({ repo, horizon_days, train_fraction, top_n: 30 });
+  const params = new URLSearchParams({ repo, horizon_days, train_fraction, top_n: 30, use_llm_szz });
   const es = new EventSource(`/analyze/stream?${params.toString()}`);
 
   es.addEventListener('progress', (ev) => {
@@ -571,6 +588,20 @@ function render(data) {
   if (top) {
     document.getElementById('statTopRisk').textContent = (top.risk_score * 100).toFixed(0) + '%';
     document.getElementById('statTopRiskFile').textContent = top.file_path;
+  }
+
+  const llmSzzNote = document.getElementById('llmSzzNote');
+  if (data.llm_szz_assessed !== null && data.llm_szz_assessed !== undefined) {
+    const total = data.llm_szz_assessed + data.llm_szz_fallback;
+    llmSzzNote.style.display = 'block';
+    if (data.llm_szz_assessed === 0 && data.llm_szz_fallback > 0) {
+      llmSzzNote.innerHTML = `<strong style="color:var(--status-warning)">LLM-assisted SZZ was requested but every call fell back to plain SZZ</strong> (${data.llm_szz_fallback} candidate${data.llm_szz_fallback === 1 ? '' : 's'}) — check that ANTHROPIC_API_KEY is set on the server.`;
+    } else {
+      llmSzzNote.textContent = `LLM-assisted SZZ (LLM4SZZ-style): ${data.llm_szz_assessed} of ${total} candidate${total === 1 ? '' : 's'} assessed by the model` +
+        (data.llm_szz_fallback ? `, ${data.llm_szz_fallback} fell back to plain SZZ.` : '.');
+    }
+  } else {
+    llmSzzNote.style.display = 'none';
   }
 
   renderMetricTable(data.evaluation);

@@ -109,6 +109,20 @@ def _commit_author_date(repo_path: str, commit_hash: str) -> datetime | None:
     return datetime.fromisoformat(out).replace(tzinfo=None)
 
 
+def commit_diff_text(repo_path: str, commit_hash: str, file_path: str, context_lines: int = 3) -> str:
+    """The diff of `commit_hash` against its single parent, for `file_path`
+    only. Used to give an LLM real content to assess (see llm_szz.py)
+    instead of just a hash. Empty for a merge/root commit."""
+    parent = _single_parent(repo_path, commit_hash)
+    if parent is None:
+        return ""
+    return _run_git(repo_path, "diff", f"-U{context_lines}", parent, commit_hash, "--", file_path)
+
+
+def commit_message(repo_path: str, commit_hash: str) -> str:
+    return _run_git(repo_path, "show", "-s", "--format=%s", commit_hash).strip()
+
+
 @dataclass
 class InducingCommit:
     commit_hash: str

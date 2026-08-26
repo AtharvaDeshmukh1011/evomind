@@ -71,8 +71,9 @@ Module**, end to end, on real repositories.
    languages are skipped entirely for this step (see limitations); such a
    repo shows an empty coupling panel rather than an error.
 9. On request (dashboard button, or `POST /recommend`), sends one risky
-   file's metrics + source excerpt to Claude (`evomind/llm/recommend.py`)
-   and returns a structured summary + prioritized refactoring suggestions.
+   file's metrics + source excerpt to an LLM via Groq
+   (`evomind/llm/recommend.py`) and returns a structured summary +
+   prioritized refactoring suggestions.
 
 ### Why tree reads, not diff replay
 
@@ -147,13 +148,16 @@ Design notes:
   passes the cutoff-date check — no LLM call is spent on a candidate the
   date alone already disqualifies.
 - **Opt-in, not automatic** (`use_llm_szz=True` on `run_pipeline`, or the
-  checkbox in the dashboard). Needs `ANTHROPIC_API_KEY`; without one, every
-  candidate falls back to plain-SZZ behavior (accepted, since it already
-  passed the date check) rather than crashing or silently dropping a label
-  plain SZZ would have kept. `AssessmentStats` (`assessed` vs. `fallback`
-  counts) makes this visible rather than silent — the dashboard shows a
-  warning if every candidate fell back, so "I turned this on and it didn't
-  error" is never confused with "it actually ran."
+  checkbox in the dashboard). Runs against **Groq** (free API tier, no
+  paid key needed) — same provider as the `/recommend` endpoint. Needs
+  `GROQ_API_KEY`; without one, every candidate falls back to plain-SZZ
+  behavior (accepted, since it already passed the date check) rather than
+  crashing or silently dropping a label plain SZZ would have kept.
+  `AssessmentStats`
+  (`assessed` vs. `fallback` counts) makes this visible rather than
+  silent — the dashboard shows a warning if every candidate fell back, so
+  "I turned this on and it didn't error" is never confused with "it
+  actually ran."
 
 ### Rolling-origin evaluation
 
@@ -194,19 +198,42 @@ python -m venv .venv
 .venv/Scripts/python.exe -m pip install -r requirements.txt
 ```
 
-For the "AI recommendation" button/`/recommend` endpoint, and for the
-opt-in "Use LLM-assisted SZZ" checkbox, set an Anthropic API key (the ML
-pipeline, dashboard, and `/analyze` all work fine without one — a key is
-only needed for these two LLM-backed features):
+Two features are LLM-backed and optional — the ML pipeline, dashboard, and
+`/analyze` all work fine with no key set. Both run on **Groq** (free tier —
+sign up at [console.groq.com](https://console.groq.com), no card required):
+
+- The "AI recommendation" button / `/recommend` endpoint.
+- The opt-in "Use LLM-assisted SZZ" checkbox.
+
+Easiest way to set it: create `backend/.env` (already gitignored — never
+commit it) with:
+
+```
+GROQ_API_KEY=gsk_...
+```
+
+`evomind/api/main.py` loads it automatically on startup via `python-dotenv`.
+Equivalent without a `.env` file:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...   # PowerShell: $env:ANTHROPIC_API_KEY = "sk-ant-..."
+export GROQ_API_KEY=gsk_...   # PowerShell: $env:GROQ_API_KEY = "gsk_..."
 ```
 
 Without a key, `/recommend` fails with a clear 502 error message rather
 than crashing; LLM-assisted SZZ falls back to plain SZZ (with a visible
 warning in the dashboard) rather than failing at all — both safe to leave
 unset while demoing the rest of the system.
+
+By default, only Git URLs can be analyzed — passing a local filesystem path
+is rejected. To opt into analyzing local repos, set
+`EVOMIND_ALLOWED_LOCAL_REPO_ROOT` to a folder; only paths inside it are then
+allowed:
+
+```bash
+export EVOMIND_ALLOWED_LOCAL_REPO_ROOT=/path/to/repos   # PowerShell: $env:EVOMIND_ALLOWED_LOCAL_REPO_ROOT = "C:\path\to\repos"
+```
+
+See "Security considerations" below for why this exists.
 
 ## Run the pipeline from the CLI
 
@@ -290,14 +317,70 @@ slower, not just share the wait.
   well for standard layouts; unconventional package structures may under- or
   over-resolve edges. (Java's resolution is exact, not heuristic — package
   declarations are self-describing.)
-- **Rolling-origin evaluation is opt-in, not automatic.** It's a separate,
-  slower script (`scripts/rolling_origin_eval.py`) rather than part of
-  `/analyze`, since it repeats the expensive per-cutoff work once per fold —
-  see the "Rolling-origin evaluation" section above for why.
+- **Rolling-origin evaluation is opt-in, not automatic.** It's available both
+  as a CLI script (`scripts/rolling_origin_eval.py`) and as a separate
+  "Run rolling-origin evaluation" button in the dashboard (its own
+  `GET /rolling-origin/stream` endpoint) — but never runs as part of the main
+  `/analyze` flow, since it repeats the expensive per-cutoff work once per
+  fold. See the "Rolling-origin evaluation" section above for why.
 - `/recommend` caches only the *single most recent* `/analyze` result
   in-memory (by design — this is a one-demo-at-a-time tool, not a
   multi-tenant service). Analyzing a second repo evicts the first.
 - LLM recommendations use plain JSON-in-the-prompt + manual Pydantic
-  validation rather than the SDK's newer structured-output helpers
-  (`messages.parse`), since those need a newer `anthropic` SDK version than
-  what's pinned here. Functionally equivalent, just more portable.
+  validation rather than any SDK-specific structured-output helper, so the
+  same pattern works unchanged if the backing model/provider ever changes.
+
+## Security considerations
+
+EvoMind is built for local, single-operator use (a laptop demo, a personal
+dev tool) — not as a shared service handling proprietary codebases. Worth
+being explicit about what that does and doesn't cover, rather than silently
+assuming it's fine.
+
+**What's actually safe today:**
+- The core pipeline (mining commits, computing code metrics, building the
+  dependency graph, training/scoring the model) runs **entirely locally** —
+  no network calls at all beyond the initial `git clone` of the repo itself.
+- Git subprocess calls use argument lists (`subprocess.run(["git", "clone", ...])`),
+  never a shell string, so a malicious repo URL can't inject shell commands.
+- Only two features send anything off the machine — the "AI recommendation"
+  button and the "LLM-assisted SZZ" checkbox, both opt-in per click/toggle,
+  both now explicitly labeled in the UI with exactly what gets sent and
+  where (a file's source/metrics, or a commit's diff, to Groq's API).
+
+**Hardening already in place, closing gaps a real deployment would hit:**
+- `CORSMiddleware` is scoped to `localhost`/`127.0.0.1`, not `allow_origins=["*"]`
+  — a wildcard would let any website's JavaScript call this API from a
+  visitor's browser if it were ever network-reachable.
+- Local repo paths are rejected unless `EVOMIND_ALLOWED_LOCAL_REPO_ROOT` is
+  explicitly set, and then only paths inside that root are allowed
+  (`_validate_repo_arg` in `evomind/api/main.py`). Without this, the API
+  would let any caller point the server at *any* folder on its filesystem —
+  there's otherwise no concept of "should this caller be allowed to read
+  this path."
+- Cloning a private repo without credentials fails in about a second with a
+  clear message, instead of hanging indefinitely waiting for a
+  username/password prompt (or a GUI credential-manager popup on Windows)
+  that can never be answered (`GIT_TERMINAL_PROMPT=0` / `GCM_INTERACTIVE=never`
+  in `evomind/ingestion/repo_source.py`, plus a timeout as a backstop).
+
+**Deliberately out of scope, and why:**
+- **No authentication.** Anyone who can reach the server can call any
+  endpoint. Fine for a single operator on localhost; not fine the moment
+  this is reachable by anyone else.
+- **No per-user repo permissions.** EvoMind has no concept of "is this
+  caller allowed to see this repo" beyond the path/CORS restrictions above —
+  doing that properly means OAuth-integrating with the actual repo host
+  (GitHub/GitLab) so *their* access control is what's enforced, using the
+  requesting user's own token to clone rather than a server-wide credential.
+  That's a real, separate project — a different kind of engineering effort
+  than the ML/analysis work this capstone is actually about — not a
+  same-afternoon addition.
+- **If ever deployed with its own stored Git credentials** (an SSH key or
+  token kept on the server for convenience), it becomes a confused-deputy
+  risk: anyone who can call the API could use *that* access, regardless of
+  whether they personally have permission to see the repo in question. This
+  is the exact shape of problem a company handling genuinely confidential
+  code has to solve properly — EvoMind doesn't attempt to here, and
+  shouldn't be deployed that way without adding the OAuth-based access
+  control above first.

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import anthropic
+import groq
 import pandas as pd
 import pytest
 
@@ -19,13 +19,13 @@ from evomind.labeling.llm_szz import (
 )
 
 
-def _text_block(text: str) -> SimpleNamespace:
-    return SimpleNamespace(type="text", text=text)
+def _chat_response(text: str) -> SimpleNamespace:
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
 
 
 def _fake_client(payload: dict) -> MagicMock:
     client = MagicMock()
-    client.messages.create.return_value = SimpleNamespace(content=[_text_block(json.dumps(payload))])
+    client.chat.completions.create.return_value = _chat_response(json.dumps(payload))
     return client
 
 
@@ -49,32 +49,44 @@ def test_assess_candidate_strips_markdown_fences():
     payload = {"is_plausible_cause": True, "reason": "ok"}
     client = MagicMock()
     fenced = "```json\n" + json.dumps(payload) + "\n```"
-    client.messages.create.return_value = SimpleNamespace(content=[_text_block(fenced)])
+    client.chat.completions.create.return_value = _chat_response(fenced)
     result = assess_candidate("a.py", "f", "c", "m", client=client)
     assert result.is_plausible_cause is True
 
 
 def test_assess_candidate_invalid_json_raises():
     client = MagicMock()
-    client.messages.create.return_value = SimpleNamespace(content=[_text_block("not json")])
+    client.chat.completions.create.return_value = _chat_response("not json")
     with pytest.raises(LLMSZZError, match="parse"):
         assess_candidate("a.py", "f", "c", "m", client=client)
 
 
 def test_assess_candidate_auth_error_wrapped():
     client = MagicMock()
-    client.messages.create.side_effect = anthropic.AuthenticationError(
+    client.chat.completions.create.side_effect = groq.AuthenticationError(
         message="bad key", response=MagicMock(status_code=401, headers={}), body=None
     )
-    with pytest.raises(LLMSZZError, match="ANTHROPIC_API_KEY"):
+    with pytest.raises(LLMSZZError, match="GROQ_API_KEY"):
         assess_candidate("a.py", "f", "c", "m", client=client)
+
+
+def test_assess_candidate_no_key_configured_wrapped(monkeypatch):
+    # groq.Groq() raises a bare GroqError (not AuthenticationError) when no
+    # key is configured anywhere -- it fails at client construction, before
+    # any network call, so no HTTP-level error/status exists yet.
+    def _raise_no_key(*args, **kwargs):
+        raise groq.GroqError("The api_key client option must be set")
+
+    monkeypatch.setattr(groq, "Groq", _raise_no_key)
+    with pytest.raises(LLMSZZError, match="GROQ_API_KEY"):
+        assess_candidate("a.py", "f", "c", "m", client=None)
 
 
 def test_assess_candidate_truncates_long_diffs():
     client = _fake_client({"is_plausible_cause": True, "reason": "ok"})
     huge_diff = "+x = 1\n" * 5000
     assess_candidate("a.py", huge_diff, huge_diff, "m", client=client)
-    prompt = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    prompt = client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
     # Each diff block is capped at MAX_DIFF_CHARS -- the full 35000-char diff must not appear whole.
     assert len(prompt) < len(huge_diff)
 
@@ -138,13 +150,13 @@ def test_date_filter_still_applies_before_any_llm_call(bug_repo):
         str(bug_repo["dir"]), "f.py", [bug_repo["fix"]], cutoff, client=client
     )
     assert result is False
-    client.messages.create.assert_not_called()
+    client.chat.completions.create.assert_not_called()
 
 
 def test_llm_failure_falls_back_to_plain_szz_behavior(bug_repo):
     cutoff = bug_repo["bug_date"] + timedelta(days=5)
     client = MagicMock()
-    client.messages.create.side_effect = anthropic.AuthenticationError(
+    client.chat.completions.create.side_effect = groq.AuthenticationError(
         message="bad key", response=MagicMock(status_code=401, headers={}), body=None
     )
     stats = AssessmentStats()
@@ -216,4 +228,4 @@ def test_refine_leaves_negative_labels_untouched_and_skips_llm(bug_repo):
     )
     assert refined.loc[0, "is_bug_prone"] == 0
     assert stats.assessed == 0
-    client.messages.create.assert_not_called()
+    client.chat.completions.create.assert_not_called()

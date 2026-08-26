@@ -14,6 +14,9 @@ applied technique following a published approach — not a novel
 contribution of this project. Related work exploring similar LLM-assisted
 SZZ variants: AgenticSZZ, AgentSZZ, MAS-SZZ.
 
+Runs against Groq (free API tier, no paid key required — same as
+evomind/llm/recommend.py). Needs GROQ_API_KEY; see https://console.groq.com.
+
 Scope: this only ever *removes* candidates plain SZZ would have accepted
 (false-positive filtering) — it never adds a candidate blame-based tracing
 didn't already find. Opt-in and bounded the same way szz.py's
@@ -28,14 +31,14 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 
-import anthropic
+import groq
 import pandas as pd
 from pydantic import BaseModel, ValidationError
 
 from evomind.ingestion.git_miner import FileCommitRecord
 from evomind.labeling.szz import commit_diff_text, commit_message, trace_inducing_commits
 
-MODEL = "claude-opus-5"
+MODEL = "openai/gpt-oss-120b"
 MAX_DIFF_CHARS = 4000
 
 SYSTEM_PROMPT = (
@@ -109,34 +112,34 @@ def assess_candidate(
     fix_diff: str,
     candidate_diff: str,
     candidate_message: str,
-    client: anthropic.Anthropic | None = None,
+    client: groq.Groq | None = None,
 ) -> InducingAssessment:
-    client = client or anthropic.Anthropic()
     prompt = _build_prompt(file_path, fix_diff, candidate_diff, candidate_message)
 
     try:
-        response = client.messages.create(
+        client = client or groq.Groq()
+        response = client.chat.completions.create(
             model=MODEL,
             max_tokens=512,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
         )
-    except anthropic.AuthenticationError as exc:
-        raise LLMSZZError("Anthropic API key missing or invalid — set ANTHROPIC_API_KEY.") from exc
-    except TypeError as exc:
-        # Some SDK versions raise a bare TypeError (not AuthenticationError)
-        # when no credentials are configured at all — see evomind/llm/recommend.py.
-        if "authentication" in str(exc).lower():
-            raise LLMSZZError("Anthropic API key missing or invalid — set ANTHROPIC_API_KEY.") from exc
-        raise
-    except anthropic.RateLimitError as exc:
-        raise LLMSZZError("Rate limited by the Anthropic API — try again shortly.") from exc
-    except anthropic.APIStatusError as exc:
-        raise LLMSZZError(f"Anthropic API error: {exc.message}") from exc
-    except anthropic.APIConnectionError as exc:
-        raise LLMSZZError("Could not reach the Anthropic API — check network connectivity.") from exc
+    except groq.AuthenticationError as exc:
+        raise LLMSZZError("Groq API key missing or invalid — set GROQ_API_KEY.") from exc
+    except groq.RateLimitError as exc:
+        raise LLMSZZError("Rate limited by the Groq API — try again shortly.") from exc
+    except groq.APIStatusError as exc:
+        raise LLMSZZError(f"Groq API error: {exc.message}") from exc
+    except groq.APIConnectionError as exc:
+        raise LLMSZZError("Could not reach the Groq API — check network connectivity.") from exc
+    except groq.GroqError as exc:
+        # Raised at client construction (e.g. no API key configured at all),
+        # before any network call, so no HTTP-level error/status exists yet.
+        raise LLMSZZError("Groq API key missing or invalid — set GROQ_API_KEY.") from exc
 
-    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    text = (response.choices[0].message.content or "").strip()
     return _parse_assessment(text)
 
 
@@ -145,7 +148,7 @@ def had_bug_before_cutoff_llm_assisted(
     file_path: str,
     candidate_fix_commits: list[str],
     cutoff: datetime,
-    client: anthropic.Anthropic | None = None,
+    client: groq.Groq | None = None,
     stats: AssessmentStats | None = None,
 ) -> bool:
     """Same contract as szz.had_bug_before_cutoff, but each blame-identified
@@ -191,7 +194,7 @@ def refine_labels_with_llm_szz(
     repo_path: str,
     cutoff: datetime,
     horizon_end: datetime,
-    client: anthropic.Anthropic | None = None,
+    client: groq.Groq | None = None,
 ) -> tuple[pd.DataFrame, AssessmentStats]:
     """Same contract and scope as szz.refine_labels_with_szz (only re-checks
     currently-positive files, bounded cost), but each candidate is filtered

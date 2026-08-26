@@ -91,8 +91,8 @@ def run_pipeline(
         llm_szz_stats: AssessmentStats | None = None
         if use_llm_szz:
             # LLM4SZZ-style false-positive filtering on top of blame-based
-            # tracing (see llm_szz.py) — opt-in since it needs an Anthropic
-            # API key and adds real latency/cost per positively-labeled file.
+            # tracing (see llm_szz.py) — opt-in since it needs a Groq API
+            # key and adds real latency per positively-labeled file.
             report_progress("Tracing bug-inducing commits (SZZ + LLM re-ranking)…")
             train_df, llm_szz_stats = refine_labels_with_llm_szz(
                 train_df, mined.records, path, cutoff, horizon_end

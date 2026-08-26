@@ -8,11 +8,13 @@
   :root {
     color-scheme: light;
     --surface-1:      #fcfcfb;
+    --surface-2:      #ffffff;
     --surface-page:   #f9f9f7;
     --text-primary:   #0b0b0b;
     --text-secondary: #52514e;
     --text-muted:     #898781;
     --gridline:       #e1e0d9;
+    --row-alt:        rgba(11,11,11,0.02);
     --baseline:       #c3c2b7;
     --border:         rgba(11,11,11,0.10);
     --series-1:       #2a78d6; /* blue — Logistic Regression */
@@ -24,104 +26,169 @@
     --status-warning:  #fab219;
     --status-serious:  #ec835a;
     --status-critical: #d03b3b;
+    --shadow-sm: 0 1px 2px rgba(20,20,15,0.05);
+    --shadow-md: 0 1px 2px rgba(20,20,15,0.04), 0 10px 28px -10px rgba(20,20,15,0.14);
+    --shadow-lg: 0 20px 60px rgba(20,20,15,0.16);
+    --glow-1: rgba(42,120,214,0.08);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
-      --surface-1:      #1a1a19;
-      --surface-page:   #0d0d0d;
+      --surface-1:      #171716;
+      --surface-2:      #1e1e1c;
+      --surface-page:   #0b0b0b;
       --text-primary:   #ffffff;
       --text-secondary: #c3c2b7;
-      --text-muted:     #898781;
-      --gridline:       #2c2c2a;
+      --text-muted:     #8b8a84;
+      --gridline:       #2a2a28;
+      --row-alt:        rgba(255,255,255,0.025);
       --baseline:       #383835;
-      --border:         rgba(255,255,255,0.10);
+      --border:         rgba(255,255,255,0.09);
       --series-1:       #3987e5;
       --series-2:       #d95926;
       --seq-100:        #184f95;
       --seq-450:        #3987e5;
       --seq-700:        #cde2fb;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 1px 2px rgba(0,0,0,0.35), 0 14px 32px -12px rgba(0,0,0,0.55);
+      --shadow-lg: 0 24px 70px rgba(0,0,0,0.55);
+      --glow-1: rgba(57,135,229,0.10);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --surface-1:      #1a1a19;
-    --surface-page:   #0d0d0d;
+    --surface-1:      #171716;
+    --surface-2:      #1e1e1c;
+    --surface-page:   #0b0b0b;
     --text-primary:   #ffffff;
     --text-secondary: #c3c2b7;
-    --text-muted:     #898781;
-    --gridline:       #2c2c2a;
+    --text-muted:     #8b8a84;
+    --gridline:       #2a2a28;
+    --row-alt:        rgba(255,255,255,0.025);
     --baseline:       #383835;
-    --border:         rgba(255,255,255,0.10);
+    --border:         rgba(255,255,255,0.09);
     --series-1:       #3987e5;
     --series-2:       #d95926;
     --seq-100:        #184f95;
     --seq-450:        #3987e5;
     --seq-700:        #cde2fb;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md: 0 1px 2px rgba(0,0,0,0.35), 0 14px 32px -12px rgba(0,0,0,0.55);
+    --shadow-lg: 0 24px 70px rgba(0,0,0,0.55);
+    --glow-1: rgba(57,135,229,0.10);
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    background: var(--surface-page);
+    background:
+      radial-gradient(900px 420px at 15% -10%, var(--glow-1), transparent 60%),
+      var(--surface-page);
+    background-attachment: fixed;
     color: var(--text-primary);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
     min-height: 100vh;
   }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
 
   header.top {
     display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 22px;
+    margin-bottom: 24px;
   }
-  .brand { display: flex; align-items: baseline; gap: 10px; }
-  .brand h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--series-1) 14%, transparent);
+    color: var(--series-1);
+  }
+  .brand-mark svg { width: 17px; height: 17px; }
+  .brand-text { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   .brand span { color: var(--text-muted); font-size: 13px; }
+
   button.theme-toggle {
+    width: 34px; height: 34px; border-radius: 9px;
     border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
-    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow-sm); transition: color 0.15s ease, border-color 0.15s ease;
   }
+  button.theme-toggle:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  button.theme-toggle svg { width: 17px; height: 17px; }
+  .icon-moon { display: none; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .icon-sun { display: none; }
+    :root:not([data-theme="light"]) .icon-moon { display: block; }
+  }
+  :root[data-theme="dark"] .icon-sun { display: none; }
+  :root[data-theme="dark"] .icon-moon { display: block; }
+  :root[data-theme="light"] .icon-sun { display: block; }
+  :root[data-theme="light"] .icon-moon { display: none; }
 
   form.controls {
     display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 10px;
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
-    padding: 14px; margin-bottom: 22px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    padding: 16px; margin-bottom: 22px; box-shadow: var(--shadow-md);
   }
-  form.controls label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--text-muted); }
+  form.controls label:not(.checkbox-row) { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
   form.controls input {
-    border: 1px solid var(--border); border-radius: 7px; padding: 8px 9px; font-size: 13px;
+    border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; font-size: 13px;
     background: var(--surface-page); color: var(--text-primary); font-family: inherit;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
-  form.controls input:focus { outline: none; border-color: var(--series-1); }
+  #repo {
+    padding-left: 30px;
+    background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="%23898781" stroke-width="2"%3E%3Cpath d="M9 3v4a1 1 0 0 1-1 1H4"/%3E%3Cpath d="M20 3H9l-6 6v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z"/%3E%3Cpath d="M12 12v6M9 15h6"/%3E%3C/svg%3E');
+    background-repeat: no-repeat; background-position: 10px center;
+  }
+  form.controls input:focus { outline: none; border-color: var(--series-1); box-shadow: 0 0 0 3px color-mix(in srgb, var(--series-1) 18%, transparent); }
   form.controls button {
-    align-self: end; border: none; border-radius: 7px; background: var(--series-1); color: white;
-    font-size: 13px; font-weight: 600; padding: 9px 16px; cursor: pointer; transition: opacity 0.15s ease;
+    align-self: end; border: none; border-radius: 8px; background: var(--series-1); color: white;
+    font-size: 13px; font-weight: 600; padding: 9px 18px; cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.1s ease; box-shadow: var(--shadow-sm);
+    display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
   }
-  form.controls button:hover:not(:disabled) { opacity: 0.9; }
-  form.controls button:disabled { opacity: 0.55; cursor: default; }
+  form.controls button:hover:not(:disabled) { opacity: 0.92; }
+  form.controls button:active:not(:disabled) { transform: translateY(1px); }
+  form.controls button:disabled { opacity: 0.75; cursor: default; }
+  .btn-spinner {
+    width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid rgba(255,255,255,0.4); border-top-color: white;
+    display: none; animation: spin 0.7s linear infinite;
+  }
+  form.controls button:disabled .btn-spinner { display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .checkbox-row {
-    grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 7px;
-    font-size: 12px; color: var(--text-secondary); margin-top: 2px; cursor: pointer;
+    grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 8px;
+    font-size: 12px; color: var(--text-secondary); margin-top: 4px; cursor: pointer;
+    padding-top: 10px; border-top: 1px solid var(--gridline);
   }
-  .checkbox-row input[type="checkbox"] { width: 14px; height: 14px; margin-top: 1px; accent-color: var(--series-1); cursor: pointer; flex-shrink: 0; }
+  .checkbox-row input[type="checkbox"] { width: 15px; height: 15px; margin-top: 1px; accent-color: var(--series-1); cursor: pointer; flex-shrink: 0; }
   .checkbox-row .hint { color: var(--text-muted); }
   .checkbox-row a { color: var(--text-secondary); }
   .checkbox-row code { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; font-size: 11px; }
 
-  .status-line { font-size: 13px; color: var(--text-secondary); margin: -8px 0 20px; min-height: 18px; }
+  .status-line { font-size: 13px; color: var(--text-secondary); margin: -8px 0 20px; min-height: 18px; display: flex; align-items: center; gap: 6px; }
   .status-line.error { color: var(--status-critical); }
 
   /* --- progress panel --- */
   .progress-panel {
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
-    padding: 16px 18px; margin-bottom: 20px; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    padding: 0; margin-bottom: 20px; display: none; box-shadow: var(--shadow-md); overflow: hidden;
   }
   .progress-panel.active { display: block; }
-  .progress-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .progress-title { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); }
+  .progress-activity {
+    height: 3px; width: 100%;
+    background: linear-gradient(90deg, transparent, var(--series-1), transparent);
+    background-size: 200% 100%; animation: sweep 1.4s linear infinite;
+  }
+  @keyframes sweep { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  .progress-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 12px; }
+  .progress-title { font-size: 12.5px; font-weight: 700; color: var(--text-secondary); }
   .progress-elapsed { font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
-  .progress-steps { display: flex; flex-direction: column; gap: 8px; }
+  .progress-steps { display: flex; flex-direction: column; gap: 8px; padding: 0 18px 16px; }
   .progress-step { display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-muted); transition: color 0.15s ease; }
   .progress-step.done { color: var(--text-secondary); }
   .progress-step.active { color: var(--text-primary); font-weight: 600; }
@@ -139,32 +206,41 @@
   @keyframes pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) {
     .progress-step.active .step-icon::after { animation: none; }
+    .progress-activity { animation: none; }
   }
 
   .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 22px; }
   .stat-tile {
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 15px 16px;
+    box-shadow: var(--shadow-md);
   }
-  .stat-tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .stat-tile .value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+  .stat-icon {
+    width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, currentColor 14%, transparent); margin-bottom: 12px;
+  }
+  .stat-icon svg { width: 16px; height: 16px; }
+  .stat-tile .label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  .stat-tile .value { font-size: 25px; font-weight: 700; margin-top: 4px; letter-spacing: -0.01em; }
   .stat-tile .sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 
   .panel {
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px;
-    padding: 18px 20px; margin-bottom: 20px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px;
+    padding: 20px 22px; margin-bottom: 20px; box-shadow: var(--shadow-md);
   }
-  .panel h2 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
-  .panel .desc { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; }
+  .panel h2 { font-size: 14px; font-weight: 700; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+  .panel-icon { display: inline-flex; width: 18px; height: 18px; color: var(--series-1); flex-shrink: 0; }
+  .panel-icon svg { width: 100%; height: 100%; }
+  .panel .desc { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; line-height: 1.5; }
 
-  .legend { display: flex; gap: 16px; margin-bottom: 12px; }
+  .legend { display: flex; gap: 16px; margin-bottom: 14px; }
   .legend .item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
   .legend .swatch { width: 10px; height: 10px; border-radius: 3px; }
 
   .panel-toolbar { display: flex; justify-content: flex-end; margin-bottom: 10px; }
   .search-input {
-    border: 1px solid var(--border); border-radius: 7px; padding: 6px 10px 6px 28px; font-size: 12.5px;
-    background: var(--surface-page) url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="%23898781" stroke-width="2.2"%3E%3Ccircle cx="11" cy="11" r="7"/%3E%3Cline x1="21" y1="21" x2="16.65" y2="16.65"/%3E%3C/svg%3E') no-repeat 8px center;
-    color: var(--text-primary); width: 220px; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px 7px 30px; font-size: 12.5px;
+    background: var(--surface-page) url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="%23898781" stroke-width="2.2"%3E%3Ccircle cx="11" cy="11" r="7"/%3E%3Cline x1="21" y1="21" x2="16.65" y2="16.65"/%3E%3C/svg%3E') no-repeat 10px center;
+    color: var(--text-primary); width: 220px; font-family: inherit; transition: border-color 0.15s ease;
   }
   .search-input:focus { outline: none; border-color: var(--series-1); }
   .row-count { font-size: 11.5px; color: var(--text-muted); align-self: center; margin-right: auto; }
@@ -174,73 +250,115 @@
     text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600;
     padding: 0 8px 8px; border-bottom: 1px solid var(--gridline);
   }
-  table.metric-table td { padding: 9px 8px; border-bottom: 1px solid var(--gridline); font-size: 13px; vertical-align: middle; }
+  table.metric-table td { padding: 10px 8px; border-bottom: 1px solid var(--gridline); font-size: 13px; vertical-align: middle; }
   table.metric-table tr:last-child td { border-bottom: none; }
-  .metric-name { color: var(--text-secondary); white-space: nowrap; width: 130px; }
+  .metric-name { color: var(--text-secondary); white-space: nowrap; width: 130px; font-weight: 500; }
   .bar-cell { width: auto; }
-  .bar-track { height: 10px; background: var(--gridline); border-radius: 4px; overflow: hidden; display: flex; gap: 2px; }
-  .bar-fill { height: 100%; border-radius: 4px; }
-  .metric-value { width: 56px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  .bar-track { height: 10px; background: var(--gridline); border-radius: 5px; overflow: hidden; display: flex; gap: 2px; }
+  .bar-fill { height: 100%; border-radius: 5px; }
+  .metric-value { width: 56px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); font-weight: 600; }
 
   .fi-row { display: grid; grid-template-columns: 220px 1fr 54px; align-items: center; gap: 10px; padding: 7px 0; }
   .fi-name { font-size: 12.5px; color: var(--text-secondary); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
   .fi-track { height: 8px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
-  .fi-fill { height: 100%; border-radius: 4px; background: var(--seq-450); }
+  .fi-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--seq-450), var(--series-1)); }
   .fi-value { font-size: 12px; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
+  .table-scroll { max-height: 560px; overflow-y: auto; border-radius: 8px; }
   table.risk-table { width: 100%; border-collapse: collapse; }
   table.risk-table th {
-    text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 600;
-    padding: 0 8px 8px; border-bottom: 1px solid var(--gridline); cursor: default; white-space: nowrap;
+    text-align: left; font-size: 11px; color: var(--text-muted); font-weight: 700;
+    padding: 8px 8px; border-bottom: 1px solid var(--gridline); cursor: default; white-space: nowrap;
+    position: sticky; top: 0; background: var(--surface-1); z-index: 1;
+    text-transform: uppercase; letter-spacing: 0.03em;
   }
   table.risk-table th.sortable { cursor: pointer; user-select: none; }
   table.risk-table th.sortable:hover { color: var(--text-secondary); }
-  table.risk-table th.sort-asc::after { content: ' \25B2'; font-size: 8px; }
-  table.risk-table th.sort-desc::after { content: ' \25BC'; font-size: 8px; }
-  table.risk-table td { padding: 8px; border-bottom: 1px solid var(--gridline); font-size: 12.5px; vertical-align: middle; }
+  table.risk-table th.sort-asc::after { content: ' \25B2'; font-size: 8px; color: var(--series-1); }
+  table.risk-table th.sort-desc::after { content: ' \25BC'; font-size: 8px; color: var(--series-1); }
+  table.risk-table td { padding: 9px 8px; border-bottom: 1px solid var(--gridline); font-size: 12.5px; vertical-align: middle; }
   table.risk-table tr:last-child td { border-bottom: none; }
   table.risk-table tbody tr { transition: background 0.1s ease; }
-  table.risk-table tbody tr:hover { background: var(--surface-page); }
+  table.risk-table tbody tr:nth-child(even) { background: var(--row-alt); }
+  table.risk-table tbody tr:hover { background: color-mix(in srgb, var(--series-1) 6%, transparent); }
   .rank-cell { color: var(--text-muted); width: 28px; font-variant-numeric: tabular-nums; }
   .file-cell { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; color: var(--text-primary); }
   .risk-bar-cell { width: 140px; }
   .risk-track { height: 8px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
   .risk-fill { height: 100%; border-radius: 4px; }
-  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-  .chip .dot { width: 7px; height: 7px; border-radius: 50%; }
-  .score-cell { width: 56px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; white-space: nowrap;
+    padding: 3px 9px 3px 7px; border-radius: 20px;
+    background: color-mix(in srgb, currentColor 15%, transparent);
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .score-cell { width: 56px; text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; font-weight: 600; }
 
   .ai-btn {
     border: 1px solid var(--border); background: var(--surface-page); color: var(--text-secondary);
-    border-radius: 6px; padding: 4px 9px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
-    transition: color 0.15s ease, border-color 0.15s ease;
+    border-radius: 7px; padding: 5px 10px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    display: inline-flex; align-items: center; gap: 5px;
   }
-  .ai-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .ai-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .ai-btn:hover { color: var(--series-1); border-color: var(--series-1); background: color-mix(in srgb, var(--series-1) 8%, transparent); }
+
+  .run-btn {
+    border: 1px solid var(--series-1); background: color-mix(in srgb, var(--series-1) 10%, transparent);
+    color: var(--series-1); border-radius: 8px; padding: 9px 16px; font-size: 12.5px; font-weight: 700;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background 0.15s ease;
+  }
+  .run-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--series-1) 18%, transparent); }
+  .run-btn:disabled { opacity: 0.65; cursor: default; }
+  .ro-spinner { border-color: color-mix(in srgb, var(--series-1) 30%, transparent); border-top-color: var(--series-1); }
+  .run-btn .ro-spinner { display: none; }
+  .run-btn:disabled .ro-spinner { display: inline-block; }
+  .ro-progress { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-secondary); margin-top: 14px; }
+  #rollingOriginResults:not(:empty) { margin-top: 16px; }
+  .ro-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+  .ro-summary-tile {
+    flex: 1; min-width: 220px; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .ro-summary-tile .ro-model-name { font-size: 12px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+  .ro-summary-tile .ro-metric { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .ro-fold {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; background: var(--surface-2);
+  }
+  .ro-fold:last-child { margin-bottom: 0; }
+  .ro-fold-head { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .ro-fold-head strong { color: var(--text-primary); }
+  table.ro-fold-table { width: 100%; border-collapse: collapse; }
+  table.ro-fold-table th { text-align: left; font-size: 10.5px; color: var(--text-muted); font-weight: 600; padding: 0 6px 5px; }
+  table.ro-fold-table td { padding: 4px 6px; font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  table.ro-fold-table td:first-child { color: var(--text-primary); font-weight: 500; }
 
   .modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+    display: none; position: fixed; inset: 0; background: rgba(10,10,8,0.55); backdrop-filter: blur(3px);
     align-items: center; justify-content: center; padding: 20px; z-index: 50;
   }
-  .modal-overlay.open { display: flex; }
+  .modal-overlay.open { display: flex; animation: fadeIn 0.15s ease; }
   .modal-card {
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 16px;
     max-width: 640px; width: 100%; max-height: 85vh; overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    box-shadow: var(--shadow-lg);
   }
   .modal-header {
     display: flex; align-items: flex-start; justify-content: space-between;
     padding: 18px 20px; border-bottom: 1px solid var(--gridline); position: sticky; top: 0; background: var(--surface-1);
   }
-  .modal-title { font-size: 14px; font-weight: 700; }
+  .modal-title { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
   .modal-file { font-size: 12px; color: var(--text-muted); font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; margin-top: 3px; }
   .modal-close {
     border: none; background: none; color: var(--text-muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px;
+    border-radius: 6px; transition: color 0.15s ease, background 0.15s ease;
   }
-  .modal-close:hover { color: var(--text-primary); }
+  .modal-close:hover { color: var(--text-primary); background: var(--row-alt); }
   .modal-body { padding: 18px 20px; }
-  .rec-summary { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.5; }
+  .rec-summary { font-size: 13px; color: var(--text-secondary); margin-bottom: 16px; line-height: 1.55; }
   .rec-suggestion {
-    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;
+    border: 1px solid var(--border); border-radius: 12px; padding: 13px 15px; margin-bottom: 10px;
+    background: var(--surface-2);
   }
   .rec-suggestion:last-child { margin-bottom: 0; }
   .rec-suggestion-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
@@ -249,20 +367,33 @@
     padding: 2px 7px; border-radius: 5px; color: white;
   }
   .rec-issue { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-  .rec-recommendation { font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+  .rec-recommendation { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
   .rec-error { color: var(--status-critical); font-size: 13px; }
+  .rec-loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 13px; padding: 30px 0; justify-content: center; }
+  .rec-loading .btn-spinner { display: inline-block; border-color: color-mix(in srgb, var(--text-muted) 35%, transparent); border-top-color: var(--series-1); }
 
   .coupling-num { width: 90px; text-align: center; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
+  .cycles-banner {
+    display: flex; align-items: center; gap: 8px; margin-top: 16px; color: var(--status-critical); font-weight: 700; font-size: 12.5px;
+  }
+  .cycles-banner svg { width: 15px; height: 15px; flex-shrink: 0; }
   .cycle-chip {
     display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 12px;
     font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-    background: var(--surface-page); border: 1px solid var(--status-critical); border-radius: 8px;
-    padding: 8px 10px; margin-top: 8px; color: var(--text-secondary);
+    background: color-mix(in srgb, var(--status-critical) 7%, var(--surface-page));
+    border: 1px solid color-mix(in srgb, var(--status-critical) 35%, var(--border));
+    border-radius: 10px;
+    padding: 9px 11px; margin-top: 8px; color: var(--text-secondary);
   }
   .cycle-chip .arrow { color: var(--status-critical); font-family: inherit; }
 
-  .empty-state { color: var(--text-muted); font-size: 13px; padding: 30px 0; text-align: center; }
+  .empty-state { color: var(--text-muted); font-size: 13px; padding: 34px 0; text-align: center; }
+  #emptyState { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  #emptyState::before {
+    content: ''; width: 40px; height: 40px; opacity: 0.35;
+    background: no-repeat center / contain url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23898781" stroke-width="1.6"%3E%3Cpath d="M3 12h4l3 8 4-16 3 8h4"/%3E%3C/svg%3E');
+  }
   .caveat {
     font-size: 11.5px; color: var(--text-muted); border-top: 1px dashed var(--gridline); margin-top: 14px; padding-top: 10px;
   }
@@ -283,10 +414,18 @@
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1>EvoMind</h1>
-      <span>Software Evolution Intelligence</span>
+      <div class="brand-mark">
+        <svg viewBox="0 0 20 20" fill="none"><circle cx="4" cy="16" r="2.1" fill="currentColor"/><circle cx="16" cy="4" r="2.1" fill="currentColor"/><circle cx="16" cy="16" r="2.1" stroke="currentColor" stroke-width="1.6"/><path d="M4 13.6V8a4 4 0 0 1 4-4h6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>EvoMind</h1>
+        <span>Software Evolution Intelligence</span>
+      </div>
     </div>
-    <button class="theme-toggle" id="themeToggle" type="button">Toggle theme</button>
+    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.6M12 18.9v2.6M4.9 4.9l1.85 1.85M17.25 17.25l1.85 1.85M2.5 12h2.6M18.9 12h2.6M4.9 19.1l1.85-1.85M17.25 6.75l1.85-1.85"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 14.7A8.4 8.4 0 1 1 9.3 3.5a7 7 0 0 0 11.2 11.2Z"/></svg>
+    </button>
   </header>
 
   <form class="controls" id="analyzeForm">
@@ -299,16 +438,18 @@
     <label>Train fraction
       <input type="number" id="trainFraction" value="0.65" min="0.1" max="0.95" step="0.05" />
     </label>
-    <button type="submit" id="analyzeBtn">Analyze</button>
+    <button type="submit" id="analyzeBtn"><span class="btn-spinner"></span><span class="btn-label">Analyze</span></button>
     <label class="checkbox-row">
       <input type="checkbox" id="useLlmSzz" />
-      <span>Use LLM-assisted SZZ <span class="hint">— filters blame false-positives via Claude, following
+      <span>Use LLM-assisted SZZ <span class="hint">— sends each candidate commit's diff to Groq's API
+        (a third party) to filter blame false-positives, following
         <a href="https://arxiv.org/abs/2504.01404" target="_blank" rel="noopener">LLM4SZZ</a>; needs
-        <code>ANTHROPIC_API_KEY</code>, otherwise falls back to plain SZZ automatically</span></span>
+        <code>GROQ_API_KEY</code>, otherwise nothing is sent anywhere and it falls back to plain SZZ</span></span>
     </label>
   </form>
 
   <div class="progress-panel" id="progressPanel">
+    <div class="progress-activity"></div>
     <div class="progress-header">
       <div class="progress-title">Analyzing…</div>
       <div class="progress-elapsed" id="progressElapsed">0s</div>
@@ -320,21 +461,25 @@
   <div id="results" style="display:none;">
     <div class="stat-grid">
       <div class="stat-tile">
+        <div class="stat-icon" style="color:var(--series-1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg></div>
         <div class="label">Files analyzed</div>
         <div class="value" id="statFiles">—</div>
         <div class="sub" id="statCutoff">—</div>
       </div>
       <div class="stat-tile">
+        <div class="stat-icon" style="color:var(--status-warning)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 21 19H3Z"/><path d="M12 9v4"/><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none"/></svg></div>
         <div class="label">Historically bug-prone</div>
         <div class="value" id="statPositiveRate">—</div>
         <div class="sub">of training set, within horizon</div>
       </div>
       <div class="stat-tile">
+        <div class="stat-icon" style="color:var(--status-good)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none"/></svg></div>
         <div class="label">Best model</div>
         <div class="value" id="statBestModel">—</div>
         <div class="sub" id="statBestF1">—</div>
       </div>
       <div class="stat-tile">
+        <div class="stat-icon" style="color:var(--status-critical)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 21 19H3Z"/><path d="M12 8.5v5"/><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none"/></svg></div>
         <div class="label">Highest current risk</div>
         <div class="value" id="statTopRisk">—</div>
         <div class="sub" id="statTopRiskFile">—</div>
@@ -342,7 +487,7 @@
     </div>
 
     <div class="panel">
-      <h2>Model evaluation</h2>
+      <h2><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9M10 21V3M17 21v-6"/></svg></span>Model evaluation</h2>
       <p class="desc">Held-out test split — Random Forest vs. a Logistic Regression baseline.</p>
       <div class="legend">
         <div class="item"><span class="swatch" style="background:var(--series-1)"></span>Logistic Regression (baseline)</div>
@@ -352,32 +497,51 @@
     </div>
 
     <div class="panel">
-      <h2>Top predictors of bug-proneness</h2>
+      <h2><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-7"/><circle cx="20" cy="6" r="1.4" fill="currentColor" stroke="none"/></svg></span>Model stability across time</h2>
+      <p class="desc">
+        The evaluation above uses one cutoff and a random file split — it tells you the model can guess held-out
+        files correctly, not whether it still works after time passes. Rolling-origin (walk-forward) evaluation
+        checks that directly: train at an earlier point in history, test purely on a later period the model never
+        saw, repeated across cutoffs at 50% / 65% / 80% through the repo's history. Slower — repeats the full
+        pipeline once per cutoff, so it's opt-in rather than run automatically.
+      </p>
+      <button type="button" class="run-btn" id="rollingOriginBtn"><span class="btn-spinner ro-spinner"></span><span class="run-btn-label">Run rolling-origin evaluation</span></button>
+      <div class="ro-progress" id="rollingOriginProgress" style="display:none;">
+        <span id="rollingOriginStatus">Starting…</span>
+      </div>
+      <div id="rollingOriginResults"></div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h6"/></svg></span>Top predictors of bug-proneness</h2>
       <p class="desc">Random Forest feature importances.</p>
       <div id="featureImportance"></div>
     </div>
 
     <div class="panel">
-      <h2>Current risk ranking</h2>
-      <p class="desc">Files scored by the trained model against the repository's latest state. Click a column to sort.</p>
+      <h2><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 21 19H3Z"/><path d="M12 8.5v5"/><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none"/></svg></span>Current risk ranking</h2>
+      <p class="desc">Files scored by the trained model against the repository's latest state. Click a column to sort.
+        Clicking "AI recommendation" on any row sends that file's source code and metrics to Groq's API (a third party) to generate the writeup.</p>
       <p class="desc" id="llmSzzNote" style="display:none;"></p>
       <div class="panel-toolbar">
         <span class="row-count" id="riskRowCount"></span>
         <input type="search" id="riskSearch" class="search-input" placeholder="Filter by filename…" />
       </div>
-      <table class="risk-table">
-        <thead id="riskTableHead">
-          <tr>
-            <th>#</th>
-            <th class="sortable" data-sort="file_path" data-sort-default="asc">File</th>
-            <th>Risk</th>
-            <th></th>
-            <th class="sortable sort-desc" data-sort="risk_score" data-sort-default="desc">Score</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="riskTableBody"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="risk-table">
+          <thead id="riskTableHead">
+            <tr>
+              <th>#</th>
+              <th class="sortable" data-sort="file_path" data-sort-default="asc">File</th>
+              <th>Risk</th>
+              <th></th>
+              <th class="sortable sort-desc" data-sort="risk_score" data-sort-default="desc">Score</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="riskTableBody"></tbody>
+        </table>
+      </div>
       <div class="caveat">
         Risk = predicted probability of a bug-fixing commit in the model's labeling horizon, not a certainty.
         Fix commits are identified by a commit-message keyword heuristic, then traced back via SZZ
@@ -389,7 +553,7 @@
     </div>
 
     <div class="panel">
-      <h2>Architectural coupling</h2>
+      <h2><span class="panel-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2.4"/><circle cx="19" cy="6" r="2.4"/><circle cx="12" cy="18" r="2.4"/><path d="M7 7.2 10.3 16M17 7.2 13.7 16M7.4 6h9.2"/></svg></span>Architectural coupling</h2>
       <p class="desc">
         Intra-repo import graph, parsed from source — <span id="depEdgeCount">0</span> dependency edges found.
         Instability = efferent / (efferent + afferent): closer to 1 means the file depends on much more than
@@ -399,23 +563,25 @@
         <span class="row-count" id="couplingRowCount"></span>
         <input type="search" id="couplingSearch" class="search-input" placeholder="Filter by filename…" />
       </div>
-      <table class="risk-table" id="couplingTable">
-        <thead id="couplingTableHead">
-          <tr>
-            <th class="sortable" data-sort="file_path" data-sort-default="asc">File</th>
-            <th class="sortable" data-sort="afferent" data-sort-default="desc">Depended on by</th>
-            <th class="sortable" data-sort="efferent" data-sort-default="desc">Depends on</th>
-            <th class="sortable sort-desc" data-sort="instability" data-sort-default="desc">Instability</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="couplingTableBody"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="risk-table" id="couplingTable">
+          <thead id="couplingTableHead">
+            <tr>
+              <th class="sortable" data-sort="file_path" data-sort-default="asc">File</th>
+              <th class="sortable" data-sort="afferent" data-sort-default="desc">Depended on by</th>
+              <th class="sortable" data-sort="efferent" data-sort-default="desc">Depends on</th>
+              <th class="sortable sort-desc" data-sort="instability" data-sort-default="desc">Instability</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="couplingTableBody"></tbody>
+        </table>
+      </div>
       <div id="cyclesSection" style="display:none;">
-        <p class="desc" style="margin-top:16px;">
-          <strong style="color:var(--status-critical)">Circular dependencies</strong> — these files import each
-          other in a cycle, which usually means they should be merged or have a shared piece extracted:
-        </p>
+        <div class="cycles-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 21 19H3Z"/><path d="M12 8.5v5"/><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none"/></svg>
+          Circular dependencies — these files import each other in a cycle, which usually means they should be merged or have a shared piece extracted:
+        </div>
         <div id="cyclesList"></div>
       </div>
     </div>
@@ -428,13 +594,16 @@
   <div class="modal-card">
     <div class="modal-header">
       <div>
-        <div class="modal-title">AI recommendation</div>
+        <div class="modal-title">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="var(--series-1)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3.2"/></svg>
+          AI recommendation
+        </div>
         <div class="modal-file" id="recFilePath">—</div>
       </div>
       <button class="modal-close" id="recClose" type="button">&times;</button>
     </div>
     <div class="modal-body" id="recBody">
-      <div class="empty-state">Loading…</div>
+      <div class="rec-loading"><span class="btn-spinner"></span>Loading…</div>
     </div>
   </div>
 </div>
@@ -442,6 +611,7 @@
 <script>
 const form = document.getElementById('analyzeForm');
 const btn = document.getElementById('analyzeBtn');
+const btnLabel = btn.querySelector('.btn-label');
 const statusLine = document.getElementById('statusLine');
 const results = document.getElementById('results');
 const emptyState = document.getElementById('emptyState');
@@ -462,6 +632,18 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   const current = root.getAttribute('data-theme');
   root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
 });
+
+/* ---------------- select-all on focus/click (address-bar style) ---------------- */
+
+function selectAllOnFocus(el) {
+  el.addEventListener('focus', () => el.select());
+  // Without this, the mouseup that follows the click which caused focus
+  // collapses the selection to a cursor position, undoing el.select() above.
+  el.addEventListener('mouseup', (e) => {
+    if (document.activeElement === el) e.preventDefault();
+  });
+}
+['repo', 'horizon', 'trainFraction'].forEach(id => selectAllOnFocus(document.getElementById(id)));
 
 /* ---------------- progress panel ---------------- */
 
@@ -520,6 +702,7 @@ form.addEventListener('submit', (e) => {
   if (!repo) return;
 
   btn.disabled = true;
+  btnLabel.textContent = 'Analyzing…';
   statusLine.className = 'status-line';
   statusLine.textContent = '';
   results.style.display = 'none';
@@ -541,6 +724,7 @@ form.addEventListener('submit', (e) => {
     render(data);
     statusLine.textContent = `Done — analyzed as of cutoff ${new Date(data.cutoff).toLocaleDateString()}.`;
     btn.disabled = false;
+    btnLabel.textContent = 'Analyze';
     es.close();
   });
 
@@ -558,6 +742,7 @@ form.addEventListener('submit', (e) => {
     emptyState.style.display = 'block';
     emptyState.textContent = 'No results to show yet.';
     btn.disabled = false;
+    btnLabel.textContent = 'Analyze';
     es.close();
   });
 });
@@ -595,7 +780,7 @@ function render(data) {
     const total = data.llm_szz_assessed + data.llm_szz_fallback;
     llmSzzNote.style.display = 'block';
     if (data.llm_szz_assessed === 0 && data.llm_szz_fallback > 0) {
-      llmSzzNote.innerHTML = `<strong style="color:var(--status-warning)">LLM-assisted SZZ was requested but every call fell back to plain SZZ</strong> (${data.llm_szz_fallback} candidate${data.llm_szz_fallback === 1 ? '' : 's'}) — check that ANTHROPIC_API_KEY is set on the server.`;
+      llmSzzNote.innerHTML = `<strong style="color:var(--status-warning)">LLM-assisted SZZ was requested but every call fell back to plain SZZ</strong> (${data.llm_szz_fallback} candidate${data.llm_szz_fallback === 1 ? '' : 's'}) — check that GROQ_API_KEY is set on the server.`;
     } else {
       llmSzzNote.textContent = `LLM-assisted SZZ (LLM4SZZ-style): ${data.llm_szz_assessed} of ${total} candidate${total === 1 ? '' : 's'} assessed by the model` +
         (data.llm_szz_fallback ? `, ${data.llm_szz_fallback} fell back to plain SZZ.` : '.');
@@ -719,6 +904,8 @@ function applyCouplingView() {
   renderCoupling(rows);
 }
 
+const AI_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg>';
+
 function renderRiskTable(files) {
   const tbody = document.getElementById('riskTableBody');
   if (!files.length) {
@@ -732,10 +919,10 @@ function renderRiskTable(files) {
     return `<tr>
       <td class="rank-cell">${f.originalRank}</td>
       <td class="file-cell">${f.file_path}</td>
-      <td><span class="chip"><span class="dot" style="background:${band.color}"></span>${band.label}</span></td>
+      <td><span class="chip" style="color:${band.color}"><span class="dot"></span>${band.label}</span></td>
       <td class="risk-bar-cell"><div class="risk-track"><div class="risk-fill" style="width:${pct}%;background:${band.color}"></div></div></td>
       <td class="score-cell">${f.risk_score.toFixed(3)}</td>
-      <td><button class="ai-btn" data-file="${f.file_path.replace(/"/g, '&quot;')}">AI recommendation</button></td>
+      <td><button class="ai-btn" data-file="${f.file_path.replace(/"/g, '&quot;')}">${AI_ICON}AI recommendation</button></td>
     </tr>`;
   }).join('');
 
@@ -796,7 +983,7 @@ const PRIORITY_COLOR = {
 
 async function openRecommendation(filePath) {
   recFilePath.textContent = filePath;
-  recBody.innerHTML = '<div class="empty-state">Asking the model for a recommendation…</div>';
+  recBody.innerHTML = '<div class="rec-loading"><span class="btn-spinner"></span>Asking the model for a recommendation…</div>';
   recModal.classList.add('open');
 
   try {
@@ -824,6 +1011,77 @@ async function openRecommendation(filePath) {
   } catch (err) {
     recBody.innerHTML = `<div class="rec-error">${err.message}</div>`;
   }
+}
+
+/* ---------------- rolling-origin evaluation ---------------- */
+
+const roBtn = document.getElementById('rollingOriginBtn');
+const roBtnLabel = roBtn.querySelector('.run-btn-label');
+const roProgress = document.getElementById('rollingOriginProgress');
+const roStatus = document.getElementById('rollingOriginStatus');
+const roResults = document.getElementById('rollingOriginResults');
+const MODEL_LABEL = { random_forest: 'Random Forest', logistic_regression_baseline: 'Logistic Regression' };
+
+roBtn.addEventListener('click', () => {
+  if (!currentRepo) return;
+  const horizon_days = parseInt(document.getElementById('horizon').value, 10);
+
+  roBtn.disabled = true;
+  roBtnLabel.textContent = 'Running…';
+  roResults.innerHTML = '';
+  roStatus.textContent = 'Starting…';
+  roProgress.style.display = 'flex';
+
+  const params = new URLSearchParams({ repo: currentRepo, horizon_days });
+  [0.5, 0.65, 0.8].forEach(c => params.append('cutoffs', c));
+  const es = new EventSource(`/rolling-origin/stream?${params.toString()}`);
+
+  es.addEventListener('progress', (ev) => {
+    roStatus.textContent = JSON.parse(ev.data).message;
+  });
+
+  es.addEventListener('result', (ev) => {
+    roProgress.style.display = 'none';
+    roBtn.disabled = false;
+    roBtnLabel.textContent = 'Run rolling-origin evaluation';
+    renderRollingOrigin(JSON.parse(ev.data));
+    es.close();
+  });
+
+  es.addEventListener('error', (ev) => {
+    roProgress.style.display = 'none';
+    roBtn.disabled = false;
+    roBtnLabel.textContent = 'Run rolling-origin evaluation';
+    let message = 'Rolling-origin evaluation failed — connection to the server was lost.';
+    if (ev.data) {
+      try { message = JSON.parse(ev.data).detail || message; } catch (_) { /* keep default */ }
+    }
+    roResults.innerHTML = `<div class="rec-error">${message}</div>`;
+    es.close();
+  });
+});
+
+function renderRollingOrigin(data) {
+  const summaryHtml = Object.entries(data.summary).map(([model, s]) => `
+    <div class="ro-summary-tile">
+      <div class="ro-model-name">${MODEL_LABEL[model] || model}</div>
+      <div class="ro-metric">F1 = ${s.f1_mean.toFixed(3)} ± ${s.f1_std.toFixed(3)}</div>
+      <div class="ro-metric">ROC-AUC = ${s.roc_auc_mean.toFixed(3)} ± ${s.roc_auc_std.toFixed(3)}</div>
+    </div>
+  `).join('');
+
+  const foldsHtml = data.folds.map((f, i) => {
+    const rows = f.evaluation.map(r => `
+      <tr><td>${MODEL_LABEL[r.model_name] || r.model_name}</td><td>${r.f1.toFixed(3)}</td><td>${r.roc_auc.toFixed(3)}</td></tr>
+    `).join('');
+    return `<div class="ro-fold">
+      <div class="ro-fold-head">Fold ${i + 1} — train @ <strong>${new Date(f.train_cutoff).toLocaleDateString()}</strong>
+        (${f.train_files} files) &rarr; test @ <strong>${new Date(f.test_cutoff).toLocaleDateString()}</strong> (${f.test_files} files)</div>
+      <table class="ro-fold-table"><thead><tr><th>Model</th><th>F1</th><th>ROC-AUC</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  roResults.innerHTML = `<div class="ro-summary">${summaryHtml}</div>${foldsHtml}`;
 }
 </script>
 </body>

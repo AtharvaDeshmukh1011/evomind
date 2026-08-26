@@ -10,16 +10,16 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-import anthropic
+import groq
 from pydantic import BaseModel, Field, ValidationError
 
-MODEL = "claude-opus-5"
+MODEL = "openai/gpt-oss-120b"
 MAX_SOURCE_CHARS = 12000
 
-# The installed anthropic SDK version in this project predates the
-# messages.parse()/output_config structured-output helpers, so recommendations
+# Runs against Groq (free API tier, no paid key required) rather than
+# Anthropic — same reasoning as evomind/labeling/llm_szz.py. Recommendations
 # are requested as plain JSON text and validated manually with Pydantic below
-# — this pattern works against any SDK version, current or older.
+# — this pattern works against any SDK/model, current or older.
 SYSTEM_PROMPT = (
     "You are a senior software engineer reviewing a file that a machine learning "
     "model — trained on this repository's own Git history and code metrics — has "
@@ -75,39 +75,34 @@ def generate_recommendation(
     risk_score: float,
     metrics: dict,
     source: str,
-    client: anthropic.Anthropic | None = None,
+    client: groq.Groq | None = None,
 ) -> FileRecommendation:
-    client = client or anthropic.Anthropic()
     prompt = _build_prompt(file_path, risk_score, metrics, source)
 
     try:
-        response = client.messages.create(
+        client = client or groq.Groq()
+        response = client.chat.completions.create(
             model=MODEL,
             max_tokens=4096,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
         )
-    except anthropic.AuthenticationError as exc:
-        raise RecommendationError(
-            "Anthropic API key missing or invalid — set ANTHROPIC_API_KEY."
-        ) from exc
-    except TypeError as exc:
-        # The SDK raises a plain TypeError (not AuthenticationError) when no
-        # credentials are configured at all — it fails building the request
-        # headers before any network call, so no HTTP-level error exists yet.
-        if "authentication" in str(exc).lower():
-            raise RecommendationError(
-                "Anthropic API key missing or invalid — set ANTHROPIC_API_KEY."
-            ) from exc
-        raise
-    except anthropic.RateLimitError as exc:
-        raise RecommendationError("Rate limited by the Anthropic API — try again shortly.") from exc
-    except anthropic.APIStatusError as exc:
-        raise RecommendationError(f"Anthropic API error: {exc.message}") from exc
-    except anthropic.APIConnectionError as exc:
-        raise RecommendationError("Could not reach the Anthropic API — check network connectivity.") from exc
+    except groq.AuthenticationError as exc:
+        raise RecommendationError("Groq API key missing or invalid — set GROQ_API_KEY.") from exc
+    except groq.RateLimitError as exc:
+        raise RecommendationError("Rate limited by the Groq API — try again shortly.") from exc
+    except groq.APIStatusError as exc:
+        raise RecommendationError(f"Groq API error: {exc.message}") from exc
+    except groq.APIConnectionError as exc:
+        raise RecommendationError("Could not reach the Groq API — check network connectivity.") from exc
+    except groq.GroqError as exc:
+        # Raised at client construction (e.g. no API key configured at all),
+        # before any network call, so no HTTP-level error/status exists yet.
+        raise RecommendationError("Groq API key missing or invalid — set GROQ_API_KEY.") from exc
 
-    text = "".join(block.text for block in response.content if block.type == "text").strip()
+    text = (response.choices[0].message.content or "").strip()
     return _parse_recommendation(text)
 
 

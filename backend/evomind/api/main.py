@@ -3,21 +3,56 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import threading
 from pathlib import Path
 from typing import Iterator
 
-from fastapi import FastAPI, HTTPException
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from evomind.ingestion.repo_source import is_remote
 from evomind.llm.recommend import RecommendationError, generate_recommendation
+from evomind.ml.rolling_origin import run_rolling_origin_evaluation
 from evomind.ml.train import FEATURE_COLUMNS
 from evomind.pipeline import PipelineResult, run_pipeline
 
+load_dotenv()  # picks up GROQ_API_KEY from backend/.env if present
+
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+
+def _validate_repo_arg(repo: str) -> None:
+    """A URL is always fine -- it can only ever clone whatever that URL
+    already grants access to. A local path is different: this API has no
+    concept of "does the caller have permission to read this folder," so
+    without a check it would let anyone who can reach the server read *any*
+    directory on its filesystem, not just repos they should see. Restrict
+    local paths to one explicitly configured root, or reject them outright.
+
+    Raises ValueError (not HTTPException) so it can be caught uniformly
+    wherever it's called -- including inside the SSE stream endpoints, where
+    raising HTTPException directly would break the stream instead of
+    surfacing as a proper `error` event with this message.
+    """
+    if is_remote(repo):
+        return
+
+    allowed_root = os.environ.get("EVOMIND_ALLOWED_LOCAL_REPO_ROOT")
+    if not allowed_root:
+        raise ValueError(
+            "Local repo paths are disabled on this server. Use a Git "
+            "URL instead, or set EVOMIND_ALLOWED_LOCAL_REPO_ROOT to opt in."
+        )
+
+    resolved_root = Path(allowed_root).resolve()
+    resolved_repo = Path(repo).resolve()
+    if resolved_root != resolved_repo and resolved_root not in resolved_repo.parents:
+        raise ValueError(f"'{repo}' is outside the allowed local repo root ({resolved_root}).")
 
 # Single-demo in-memory cache: the dashboard analyzes one repo at a time, and
 # /recommend needs the metrics + source snapshots the preceding /analyze call
@@ -31,9 +66,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# The dashboard is served from this same origin, so same-origin requests
+# never need CORS at all -- this only matters for a *different* website's JS
+# calling this API from a browser. allow_origins=["*"] would let literally
+# any site do that; scoped to localhost instead, since that's the only place
+# this is actually meant to run.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://127.0.0.1:8000", "http://localhost:8000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -47,7 +87,7 @@ class AnalyzeRequest(BaseModel):
     use_llm_szz: bool = Field(
         False,
         description="LLM4SZZ-style false-positive filtering on top of blame-based SZZ tracing. "
-        "Needs ANTHROPIC_API_KEY; silently no-ops (falls back to plain SZZ) without one.",
+        "Needs GROQ_API_KEY; silently no-ops (falls back to plain SZZ) without one.",
     )
 
 
@@ -89,6 +129,22 @@ class AnalyzeResponse(BaseModel):
     cyclic_groups: list[list[str]]
     llm_szz_assessed: int | None = None  # None unless use_llm_szz was requested
     llm_szz_fallback: int | None = None  # candidates the LLM call failed for (e.g. no API key)
+
+
+class FoldEval(BaseModel):
+    train_cutoff: str
+    test_cutoff: str
+    train_files: int
+    test_files: int
+    evaluation: list[ModelEval]
+
+
+class RollingOriginResponse(BaseModel):
+    repo: str
+    horizon_days: int
+    cutoff_fractions: list[float]
+    folds: list[FoldEval]
+    summary: dict[str, dict[str, float]]  # model_name -> {f1_mean, f1_std, roc_auc_mean, roc_auc_std}
 
 
 class RecommendRequest(BaseModel):
@@ -159,6 +215,7 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     try:
+        _validate_repo_arg(req.repo)
         result = run_pipeline(
             repo=req.repo,
             horizon_days=req.horizon_days,
@@ -198,6 +255,7 @@ def analyze_stream(
 
         def worker() -> None:
             try:
+                _validate_repo_arg(repo)
                 result = run_pipeline(
                     repo=repo,
                     horizon_days=horizon_days,
@@ -231,6 +289,88 @@ def analyze_stream(
         _last_result.clear()
         _last_result[repo] = result
         response = _build_analyze_response(result, top_n)
+        yield _sse("result", response.model_dump())
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.get("/rolling-origin/stream")
+def rolling_origin_stream(
+    repo: str,
+    horizon_days: int = 365,
+    cutoffs: list[float] = Query(default=[0.5, 0.65, 0.8]),
+) -> StreamingResponse:
+    """Walk-forward evaluation (evomind/ml/rolling_origin.py) streamed the
+    same way as /analyze/stream. Deliberately separate from /analyze: it
+    repeats the expensive per-cutoff pipeline work once per fold, so it's
+    meant to be triggered on demand as supporting evidence, not run on
+    every dashboard analysis.
+    """
+    fractions = tuple(cutoffs)
+
+    def generate() -> Iterator[str]:
+        events: queue.Queue = queue.Queue()
+        outcome: dict = {}
+
+        def worker() -> None:
+            try:
+                _validate_repo_arg(repo)
+                result = run_rolling_origin_evaluation(
+                    repo=repo,
+                    horizon_days=horizon_days,
+                    cutoff_fractions=fractions,
+                    on_progress=lambda message: events.put(("progress", message)),
+                )
+                outcome["result"] = result
+            except ValueError as exc:
+                outcome["error"] = (422, str(exc))
+            except Exception as exc:  # noqa: BLE001 — must reach the client as an SSE error, not crash the stream
+                outcome["error"] = (500, f"Unexpected error: {exc}")
+            finally:
+                events.put(("finished", None))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+        while True:
+            kind, payload = events.get()
+            if kind == "progress":
+                yield _sse("progress", {"message": payload})
+            else:
+                break
+
+        if "error" in outcome:
+            status, detail = outcome["error"]
+            yield _sse("error", {"status": status, "detail": detail})
+            return
+
+        result = outcome["result"]
+        # A single fold has no spread to measure -- pandas' .std() over one
+        # value is NaN, which plain json.dumps() emits as a bare `NaN` token
+        # (valid Python, invalid JSON), breaking the browser's JSON.parse.
+        summary = {
+            model: {k: (v if v == v else 0.0) for k, v in stats.items()}
+            for model, stats in result.summary().items()
+        }
+        response = RollingOriginResponse(
+            repo=repo,
+            horizon_days=horizon_days,
+            cutoff_fractions=list(fractions),
+            folds=[
+                FoldEval(
+                    train_cutoff=f.train_cutoff,
+                    test_cutoff=f.test_cutoff,
+                    train_files=f.train_files,
+                    test_files=f.test_files,
+                    evaluation=[ModelEval(**r.__dict__) for r in f.report.results],
+                )
+                for f in result.folds
+            ],
+            summary=summary,
+        )
         yield _sse("result", response.model_dump())
 
     return StreamingResponse(

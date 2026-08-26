@@ -68,3 +68,51 @@ def test_analyze_includes_dependency_fields():
     assert coupled["app.py"]["efferent"] == 1
     assert coupled["app.py"]["instability"] == 1.0
     assert coupled["util.py"]["afferent"] == 1
+
+
+def test_local_repo_path_rejected_without_allowed_root(monkeypatch, tmp_path):
+    monkeypatch.delenv("EVOMIND_ALLOWED_LOCAL_REPO_ROOT", raising=False)
+    with patch("evomind.api.main.run_pipeline", return_value=_fake_pipeline_result()) as mocked:
+        resp = client.post("/analyze", json={"repo": str(tmp_path)})
+
+    assert resp.status_code == 422
+    assert "disabled" in resp.json()["detail"]
+    mocked.assert_not_called()  # must reject before ever touching the filesystem
+
+
+def test_local_repo_path_rejected_outside_allowed_root(monkeypatch, tmp_path):
+    allowed_root = tmp_path / "allowed"
+    allowed_root.mkdir()
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    monkeypatch.setenv("EVOMIND_ALLOWED_LOCAL_REPO_ROOT", str(allowed_root))
+
+    with patch("evomind.api.main.run_pipeline", return_value=_fake_pipeline_result()) as mocked:
+        resp = client.post("/analyze", json={"repo": str(outside_dir)})
+
+    assert resp.status_code == 422
+    assert "outside the allowed" in resp.json()["detail"]
+    mocked.assert_not_called()
+
+
+def test_local_repo_path_allowed_inside_allowed_root(monkeypatch, tmp_path):
+    allowed_root = tmp_path / "allowed"
+    (allowed_root / "myrepo").mkdir(parents=True)
+    monkeypatch.setenv("EVOMIND_ALLOWED_LOCAL_REPO_ROOT", str(allowed_root))
+    main._last_result.clear()
+
+    with patch("evomind.api.main.run_pipeline", return_value=_fake_pipeline_result()) as mocked:
+        resp = client.post("/analyze", json={"repo": str(allowed_root / "myrepo")})
+
+    assert resp.status_code == 200
+    mocked.assert_called_once()
+
+
+def test_remote_url_never_needs_allowed_root(monkeypatch):
+    monkeypatch.delenv("EVOMIND_ALLOWED_LOCAL_REPO_ROOT", raising=False)
+    main._last_result.clear()
+    with patch("evomind.api.main.run_pipeline", return_value=_fake_pipeline_result()) as mocked:
+        resp = client.post("/analyze", json={"repo": "https://example.com/repo.git"})
+
+    assert resp.status_code == 200
+    mocked.assert_called_once()

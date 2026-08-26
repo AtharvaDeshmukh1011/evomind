@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from evomind.api import main
 from evomind.architecture.dependency_graph import DependencyGraph
+from evomind.ml.rolling_origin import FoldResult, RollingOriginResult
 from evomind.ml.train import EvalResult, FEATURE_COLUMNS, TrainingReport
 from evomind.pipeline import PipelineResult
 
@@ -88,6 +89,96 @@ def test_stream_emits_error_event_on_value_error():
 
     with patch("evomind.api.main.run_pipeline", side_effect=raising_pipeline):
         with client.stream("GET", "/analyze/stream", params={"repo": "https://example.com/repo.git"}) as resp:
+            body = "".join(resp.iter_text())
+
+    events = _parse_sse(body)
+    assert events[-1][0] == "error"
+    import json
+    error_data = json.loads(events[-1][1])
+    assert error_data["status"] == 422
+    assert "not enough data" in error_data["detail"]
+
+
+def test_stream_rejects_local_path_as_proper_sse_error_not_broken_connection(monkeypatch, tmp_path):
+    # This is the scenario the fix specifically targets: raising an
+    # HTTPException here instead of a caught ValueError would break the SSE
+    # stream before it starts, and the browser's EventSource would show a
+    # generic "connection lost" message instead of this specific one.
+    monkeypatch.delenv("EVOMIND_ALLOWED_LOCAL_REPO_ROOT", raising=False)
+    with patch("evomind.api.main.run_pipeline") as mocked:
+        with client.stream("GET", "/analyze/stream", params={"repo": str(tmp_path)}) as resp:
+            assert resp.status_code == 200
+            body = "".join(resp.iter_text())
+
+    mocked.assert_not_called()
+    events = _parse_sse(body)
+    assert events[-1][0] == "error"
+    import json
+    error_data = json.loads(events[-1][1])
+    assert error_data["status"] == 422
+    assert "disabled" in error_data["detail"]
+
+
+def _fake_rolling_origin_result() -> RollingOriginResult:
+    report = TrainingReport(
+        results=[
+            EvalResult(
+                model_name="random_forest", precision=0.8, recall=0.7, f1=0.75,
+                roc_auc=0.9, average_precision=0.85, positive_rate=0.5, n_test=10,
+            )
+        ],
+    )
+    return RollingOriginResult(
+        repo="https://example.com/repo.git",
+        # A single fold is deliberate: pandas' .std() over one observation
+        # is NaN (division by zero, ddof=1) -- this is exactly the case the
+        # API must sanitize before it hits json.dumps().
+        folds=[
+            FoldResult(
+                train_cutoff="2023-01-01T00:00:00", test_cutoff="2023-06-01T00:00:00",
+                train_files=50, test_files=40, report=report,
+            ),
+        ],
+    )
+
+
+def _fake_run_rolling_origin(*, repo, horizon_days, cutoff_fractions, on_progress=None):
+    if on_progress:
+        on_progress("Mining commit history…")
+        on_progress("Evaluating fold 1 of 2…")
+    return _fake_rolling_origin_result()
+
+
+def test_rolling_origin_stream_emits_progress_then_result():
+    with patch("evomind.api.main.run_rolling_origin_evaluation", side_effect=_fake_run_rolling_origin):
+        with client.stream(
+            "GET", "/rolling-origin/stream", params={"repo": "https://example.com/repo.git"}
+        ) as resp:
+            assert resp.status_code == 200
+            body = "".join(resp.iter_text())
+
+    events = _parse_sse(body)
+    kinds = [e for e, _ in events]
+    assert kinds.count("progress") == 2
+    assert kinds[-1] == "result"
+
+    import json
+    result_data = json.loads(events[-1][1])
+    assert result_data["repo"] == "https://example.com/repo.git"
+    assert len(result_data["folds"]) == 1
+    # A single-observation std comes back as NaN from pandas -- must be
+    # sanitized to 0.0, since bare NaN is not valid JSON and breaks JSON.parse.
+    assert result_data["summary"]["random_forest"]["f1_std"] == 0.0
+
+
+def test_rolling_origin_stream_emits_error_event_on_value_error():
+    def raising(**kwargs):
+        raise ValueError("not enough data")
+
+    with patch("evomind.api.main.run_rolling_origin_evaluation", side_effect=raising):
+        with client.stream(
+            "GET", "/rolling-origin/stream", params={"repo": "https://example.com/repo.git"}
+        ) as resp:
             body = "".join(resp.iter_text())
 
     events = _parse_sse(body)

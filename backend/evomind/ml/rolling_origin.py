@@ -20,6 +20,7 @@ not for every dashboard click.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 
@@ -70,6 +71,7 @@ def run_rolling_origin_evaluation(
     repo: str,
     horizon_days: int = 365,
     cutoff_fractions: tuple[float, ...] = (0.5, 0.65, 0.8),
+    on_progress: Callable[[str], None] | None = None,
 ) -> RollingOriginResult:
     """Builds a feature table at each fraction in `cutoff_fractions`
     (chronologically increasing, each independently SZZ-refined), then
@@ -81,18 +83,27 @@ def run_rolling_origin_evaluation(
     if list(cutoff_fractions) != sorted(cutoff_fractions):
         raise ValueError("cutoff_fractions must be chronologically increasing.")
 
-    fold_tables: list[tuple[str, pd.DataFrame]] = []
+    def report_progress(message: str) -> None:
+        if on_progress is not None:
+            on_progress(message)
 
+    fold_tables: list[tuple[str, pd.DataFrame]] = []
+    n = len(cutoff_fractions)
+
+    report_progress("Cloning repository…")
     with local_repo_path(repo) as path:
         start, end = commit_date_range(path)
+
+        report_progress("Mining commit history…")
         mined = mine_repository(path)
         if not mined.records:
             raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
 
-        for fraction in cutoff_fractions:
+        for i, fraction in enumerate(cutoff_fractions):
             cutoff = start + (end - start) * fraction
             horizon_end = cutoff + timedelta(days=horizon_days)
 
+            report_progress(f"Reading code at cutoff {i + 1} of {n} ({fraction:.0%} through history)…")
             cutoff_commit = commit_at_or_before(path, cutoff)
             if cutoff_commit is None:
                 raise ValueError(f"Could not resolve a commit at or before {cutoff.isoformat()}.")
@@ -103,12 +114,14 @@ def run_rolling_origin_evaluation(
             fold_tables.append((cutoff.isoformat(), df))
 
     result = RollingOriginResult(repo=repo)
-    for (train_cutoff, train_df), (test_cutoff, test_df) in zip(fold_tables, fold_tables[1:]):
+    fold_pairs = list(zip(fold_tables, fold_tables[1:]))
+    for i, ((train_cutoff, train_df), (test_cutoff, test_df)) in enumerate(fold_pairs):
         if len(train_df) < 10 or train_df["is_bug_prone"].nunique() < 2:
             continue
         if len(test_df) < 10 or test_df["is_bug_prone"].nunique() < 2:
             continue
 
+        report_progress(f"Evaluating fold {i + 1} of {len(fold_pairs)} (train → test)…")
         report = train_on_evaluate_on(train_df, test_df)
         result.folds.append(
             FoldResult(
@@ -126,4 +139,5 @@ def run_rolling_origin_evaluation(
             "a longer horizon_days, or fewer/wider-spaced cutoff_fractions."
         )
 
+    report_progress("Done.")
     return result

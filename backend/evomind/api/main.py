@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from evomind.ingestion.repo_source import is_remote
@@ -78,6 +79,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serves everything under static/ (currently just static/vendor/motion.min.js,
+# a self-hosted, pinned copy of https://motion.dev's vanilla-JS build --
+# vendored rather than loaded from a CDN so the dashboard has zero runtime
+# dependency on internet access, matching every other asset here). index.html
+# itself is still served by the explicit "/" route below, not through this.
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 
 class AnalyzeRequest(BaseModel):
     repo: str = Field(..., description="Local path or Git URL, e.g. https://github.com/pallets/flask")
@@ -123,6 +131,9 @@ class AnalyzeResponse(BaseModel):
     evaluation: list[ModelEval]
     best_model: str
     feature_importances: dict[str, float]
+    # Which quantity the importances are — differs by selected model, so the
+    # dashboard labels the panel from this instead of hardcoding a model name.
+    feature_importance_kind: str = ""
     top_risk_files: list[RiskyFile]
     dependency_edge_count: int
     most_coupled_files: list[CoupledFile]
@@ -172,7 +183,12 @@ def health() -> dict:
 
 @app.get("/")
 def dashboard() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+    # No-cache: this file is under active development and a stale browser
+    # copy (a plain refresh can serve one without revalidating) has already
+    # caused real confusion once -- "I don't see the changes" when the
+    # server was serving them fine. Not needed for /static/vendor/*, which
+    # is versioned by filename/content rather than edited in place.
+    return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
 def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeResponse:
@@ -191,6 +207,7 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
         evaluation=[ModelEval(**r.__dict__) for r in result.training_report.results],
         best_model=result.training_report.best_model_name,
         feature_importances=result.training_report.feature_importances,
+        feature_importance_kind=result.training_report.feature_importance_kind,
         top_risk_files=[
             RiskyFile(file_path=row.file_path, risk_score=row.risk_score)
             for row in top_risk.itertuples()

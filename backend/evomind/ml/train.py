@@ -1,12 +1,17 @@
 """Trains and evaluates bug-proneness classifiers on the feature table.
 
-Reports a Random Forest model against a Logistic Regression baseline, since
-the literature review (Ajibode et al., 2024) found ensemble methods like
-Random Forest consistently outperform simpler linear models on this task.
+Fits a Random Forest against a Logistic Regression baseline, since the
+literature review (Ajibode et al., 2024) found ensemble methods like Random
+Forest consistently outperform simpler linear models on this task — but
+selects between them on measured held-out performance rather than assuming
+it, and the selected model is the one that goes on to score files in
+`evomind/pipeline.py`. See `_selection_key` for why the selection metric is
+ROC-AUC rather than F1.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 import joblib
@@ -63,13 +68,18 @@ class TrainingReport:
     results: list[EvalResult] = field(default_factory=list)
     best_model_name: str = ""
     feature_importances: dict[str, float] = field(default_factory=dict)
-    model: object = None
+    # Which quantity `feature_importances` actually holds — it differs by
+    # model (see `_feature_importances`), so the dashboard can label it
+    # rather than always claiming "Random Forest importances".
+    feature_importance_kind: str = ""
+    model: object = None  # the selected model — the one that scores files
 
     def to_dict(self) -> dict:
         return {
             "results": [r.__dict__ for r in self.results],
             "best_model_name": self.best_model_name,
             "feature_importances": self.feature_importances,
+            "feature_importance_kind": self.feature_importance_kind,
         }
 
 
@@ -115,19 +125,71 @@ def _fit_models(X_train: pd.DataFrame, y_train: pd.Series, random_state: int):
     return baseline, forest
 
 
+def _selection_key(result: EvalResult) -> tuple[float, float]:
+    """Ranks candidate models: ROC-AUC first, F1 as a tiebreak.
+
+    ROC-AUC rather than F1 because the product output is a *ranking* of
+    files by risk score (see `pipeline.py`), not a binary accept/reject at
+    the 0.5 probability threshold that precision/recall/F1 are computed at.
+    ROC-AUC measures exactly the property the ranking depends on — whether
+    a genuinely bug-prone file is scored above a clean one — while F1
+    measures quality at one arbitrary cut point. The rolling-origin runs
+    make the difference concrete: on Click, ROC-AUC stayed stable across
+    folds (0.795-0.882) while F1 swung far wider (0.417-0.690), so F1 is
+    the noisier quantity to select on.
+
+    `roc_auc` is NaN when a test split comes out single-class. Map that to
+    -1.0 explicitly: NaN comparisons are always False, so leaving it in
+    would let `max` pick by list order while looking like it compared
+    scores.
+    """
+    roc_auc = -1.0 if math.isnan(result.roc_auc) else result.roc_auc
+    return (roc_auc, result.f1)
+
+
+def _feature_importances(model) -> tuple[dict[str, float], str]:
+    """Per-feature contribution for whichever model was selected.
+
+    The two models expose different quantities, so this can't just read one
+    attribute. Random Forest has `feature_importances_` (mean decrease in
+    impurity). The logistic baseline has none — its comparable quantity is
+    the magnitude of each coefficient, which is only meaningful because the
+    pipeline standardizes features first, putting every coefficient on the
+    same scale. Normalized to sum to 1 so both kinds render against the
+    same axis in the dashboard, and returned with a label so the UI can say
+    which one it's showing instead of guessing.
+    """
+    if hasattr(model, "feature_importances_"):
+        values = model.feature_importances_.tolist()
+        kind = "mean decrease in impurity (Random Forest)"
+    else:
+        magnitudes = [abs(float(c)) for c in model.named_steps["clf"].coef_[0]]
+        total = sum(magnitudes)
+        values = [m / total for m in magnitudes] if total else magnitudes
+        kind = "absolute standardized coefficient (Logistic Regression)"
+
+    ranked = dict(sorted(zip(FEATURE_COLUMNS, values), key=lambda kv: kv[1], reverse=True))
+    return ranked, kind
+
+
 def _build_report(baseline, forest, X_test: pd.DataFrame, y_test: pd.Series) -> TrainingReport:
+    candidates = {
+        "logistic_regression_baseline": baseline,
+        "random_forest": forest,
+    }
+
     report = TrainingReport()
     report.results.append(_evaluate("logistic_regression_baseline", baseline, X_test, y_test))
     report.results.append(_evaluate("random_forest", forest, X_test, y_test))
-    report.best_model_name = max(report.results, key=lambda r: r.f1).model_name
-    report.feature_importances = dict(
-        sorted(
-            zip(FEATURE_COLUMNS, forest.feature_importances_.tolist()),
-            key=lambda kv: kv[1],
-            reverse=True,
-        )
-    )
-    report.model = forest
+
+    best = max(report.results, key=_selection_key)
+    report.best_model_name = best.model_name
+    # The selected model is the one that actually scores files downstream.
+    # Reporting one winner and then scoring with the other would make
+    # `best_model_name` a label with nothing behind it — and the feature
+    # importances would describe a model the risk scores never came from.
+    report.model = candidates[best.model_name]
+    report.feature_importances, report.feature_importance_kind = _feature_importances(report.model)
     return report
 
 
@@ -157,7 +219,7 @@ def train_and_evaluate(
 
     if model_out_path:
         joblib.dump(
-            {"model": forest, "feature_columns": FEATURE_COLUMNS},
+            {"model": report.model, "feature_columns": FEATURE_COLUMNS},
             model_out_path,
         )
 

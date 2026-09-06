@@ -49,7 +49,9 @@ Module**, end to end, on real repositories.
    a rename, an unrelated refactor). See "LLM-assisted SZZ" below.
 6. Trains a Random Forest against a Logistic Regression baseline
    (`evomind/ml/train.py`), evaluated on a held-out split with precision,
-   recall, F1, ROC-AUC, and average precision. A separate, opt-in
+   recall, F1, ROC-AUC, and average precision, then **selects between them
+   on measured ROC-AUC** — the selected model is the one that scores files
+   in step 7. See "How the model is selected" below. A separate, opt-in
    **rolling-origin evaluation** (`evomind/ml/rolling_origin.py`,
    `scripts/rolling_origin_eval.py`) trains and tests across multiple
    chronologically-increasing cutoffs instead of one random split — see
@@ -88,6 +90,45 @@ in 2019, then reappearing because a pre-rename branch merged weeks later).
 `git rev-list` + `git archive` sidestep it entirely by resolving one exact
 commit and reading its tree directly — no diff replay, no ambiguity.
 `tests/test_tree_snapshot.py` covers this.
+
+### How the model is selected
+
+Nothing about the choice is hardcoded or assumed: both models are fitted on
+the same 70% training split, both are scored on the same held-out 30%, and
+`_build_report` in `evomind/ml/train.py` picks the winner with a single
+`max(report.results, key=_selection_key)`. That name is what the dashboard
+shows as "Best model", and — this is the part that matters — the same object
+is what `pipeline.py` then calls `predict_proba` on to produce every risk
+score in the ranking. So "best model" is never a label with a different
+model behind it.
+
+`_selection_key` ranks on **ROC-AUC, with F1 only as a tiebreak**. The
+reason is that the product output is a *ranking* of files by risk score, not
+a binary accept/reject at the 0.5 probability threshold that
+precision/recall/F1 are computed at. ROC-AUC measures exactly the property
+the ranking depends on — is a genuinely bug-prone file scored above a clean
+one — whereas F1 measures quality at one arbitrary cut point. The
+rolling-origin runs make this concrete rather than theoretical: on Click,
+ROC-AUC held steady across folds (0.795-0.882) while F1 swung far wider
+(0.417-0.690), so F1 is measurably the noisier quantity to select on.
+
+Two consequences worth stating plainly:
+
+- **The winner varies by repository, and that's the point.** A run reporting
+  the logistic baseline isn't a failure — it says that repo's signal is close
+  to linearly separable in these 16 features. Reporting a strong model with
+  no simple comparison point would be the weaker result.
+- **Feature importances follow the selected model**, because the two expose
+  different quantities: mean decrease in impurity for the forest, absolute
+  standardized coefficients for the logistic pipeline (comparable across
+  features only because it standardizes them first). Both are normalized to
+  sum to 1, and the dashboard panel is labeled with which one it is rather
+  than always claiming "Random Forest importances".
+
+`tests/test_train.py` pins all of this, including the regression case that
+motivated it: an earlier version always assigned the forest as the scorer
+while still reporting a winner by metric, so the dashboard could announce
+one model over a ranking the other had produced.
 
 ### Why the cutoff/horizon split matters
 

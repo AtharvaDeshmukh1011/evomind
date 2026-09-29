@@ -1,10 +1,3 @@
-"""LLM-generated refactoring recommendations for a risky file.
-
-Grounds the recommendation in the same evidence the ML model saw: the
-predicted risk score, the file's code/process metrics, and an excerpt of
-its actual source — not just the metrics in isolation.
-"""
-
 from __future__ import annotations
 
 import json
@@ -16,10 +9,6 @@ from pydantic import BaseModel, Field, ValidationError
 MODEL = "openai/gpt-oss-120b"
 MAX_SOURCE_CHARS = 12000
 
-# Runs against Groq (free API tier, no paid key required) rather than
-# Anthropic — same reasoning as evomind/labeling/llm_szz.py. Recommendations
-# are requested as plain JSON text and validated manually with Pydantic below
-# — this pattern works against any SDK/model, current or older.
 SYSTEM_PROMPT = (
     "You are a senior software engineer reviewing a file that a machine learning "
     "model — trained on this repository's own Git history and code metrics — has "
@@ -48,7 +37,7 @@ class FileRecommendation(BaseModel):
 
 
 class RecommendationError(RuntimeError):
-    """Raised when the LLM call fails; carries a user-facing message."""
+    pass
 
 
 def _build_prompt(file_path: str, risk_score: float, metrics: dict, source: str) -> str:
@@ -98,8 +87,6 @@ def generate_recommendation(
     except groq.APIConnectionError as exc:
         raise RecommendationError("Could not reach the Groq API — check network connectivity.") from exc
     except groq.GroqError as exc:
-        # Raised at client construction (e.g. no API key configured at all),
-        # before any network call, so no HTTP-level error/status exists yet.
         raise RecommendationError("Groq API key missing or invalid — set GROQ_API_KEY.") from exc
 
     text = (response.choices[0].message.content or "").strip()
@@ -107,7 +94,6 @@ def generate_recommendation(
 
 
 def _parse_recommendation(text: str) -> FileRecommendation:
-    # Models occasionally wrap JSON in ```json fences despite instructions not to.
     if text.startswith("```"):
         text = text.strip("`")
         if text.startswith("json"):

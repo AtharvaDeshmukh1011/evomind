@@ -1,23 +1,3 @@
-"""Rolling-origin (walk-forward) time-based evaluation.
-
-The main pipeline (evomind/pipeline.py) evaluates with a single random
-train/test split within one snapshot — fast enough for interactive
-dashboard use, but that split has nothing to do with time, so it never
-actually tests whether a model trained on older data still holds up on
-newer, unseen data. Rolling-origin does exactly that: train at an earlier
-cutoff, evaluate purely on a later period the model never saw. This is the
-evaluation protocol closer to what rigorous defect-prediction papers use
-(e.g. the time-dependent methods in Robredo et al., 2024), and it directly
-answers the question a single split can't: is performance stable across
-time, or did we get lucky (or unlucky) with one arbitrary split?
-
-Deliberately NOT part of the interactive /analyze path: it repeats the
-expensive per-cutoff work (tree read + code metrics for every file) once
-per fold, so it multiplies analysis time by roughly the fold count. Meant
-for generating a report-quality evaluation via scripts/rolling_origin_eval.py,
-not for every dashboard click.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -49,9 +29,6 @@ class RollingOriginResult:
     folds: list[FoldResult] = field(default_factory=list)
 
     def summary(self) -> dict[str, dict[str, float]]:
-        """Mean/std F1 and ROC-AUC per model across folds — the headline
-        robustness numbers: consistent metrics across folds mean the model
-        generalizes across time, not just within one arbitrary split."""
         rows = [
             {"model": r.model_name, "f1": r.f1, "roc_auc": r.roc_auc}
             for fold in self.folds
@@ -73,11 +50,6 @@ def run_rolling_origin_evaluation(
     cutoff_fractions: tuple[float, ...] = (0.5, 0.65, 0.8),
     on_progress: Callable[[str], None] | None = None,
 ) -> RollingOriginResult:
-    """Builds a feature table at each fraction in `cutoff_fractions`
-    (chronologically increasing, each independently SZZ-refined), then
-    evaluates every adjacent pair as a fold: train on fold i's data, test
-    purely on fold i+1's — a later, non-overlapping period.
-    """
     if len(cutoff_fractions) < 2:
         raise ValueError("Need at least 2 cutoff_fractions to form a rolling-origin fold.")
     if list(cutoff_fractions) != sorted(cutoff_fractions):

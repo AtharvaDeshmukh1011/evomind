@@ -57,21 +57,20 @@ def test_traces_fix_back_to_inducing_commit(bug_repo):
 
 
 def test_had_bug_before_cutoff_true_when_inducing_commit_predates_cutoff(bug_repo):
-    cutoff = bug_repo["bug_date"] + timedelta(days=5)  # after the bug was introduced
+    cutoff = bug_repo["bug_date"] + timedelta(days=5)
     assert had_bug_before_cutoff(
         str(bug_repo["dir"]), "f.py", [bug_repo["fix"]], cutoff
     ) is True
 
 
 def test_had_bug_before_cutoff_false_when_defect_introduced_after_cutoff(bug_repo):
-    cutoff = bug_repo["bug_date"] - timedelta(days=5)  # before the bug existed
+    cutoff = bug_repo["bug_date"] - timedelta(days=5)
     assert had_bug_before_cutoff(
         str(bug_repo["dir"]), "f.py", [bug_repo["fix"]], cutoff
     ) is False
 
 
 def test_root_commit_fix_traces_to_nothing(bug_repo):
-    # The very first commit has no parent — nothing to blame.
     results = trace_inducing_commits(str(bug_repo["dir"]), bug_repo["add"], "f.py")
     assert results == []
 
@@ -108,7 +107,7 @@ def test_refine_keeps_label_when_defect_predates_cutoff(bug_repo):
 
 
 def test_refine_drops_label_when_defect_introduced_after_cutoff(bug_repo):
-    cutoff = bug_repo["bug_date"] - timedelta(days=5)  # before the bug existed
+    cutoff = bug_repo["bug_date"] - timedelta(days=5)
     horizon_end = cutoff + timedelta(days=30)
     train_df = pd.DataFrame([{"file_path": "f.py", "is_bug_prone": 1}])
     records = [_rec("f.py", cutoff + timedelta(days=1), bug_repo["fix"], bug=True)]
@@ -118,10 +117,6 @@ def test_refine_drops_label_when_defect_introduced_after_cutoff(bug_repo):
 
 
 def test_handles_non_ascii_content_without_crashing(tmp_path):
-    # Regression test: subprocess text=True on Windows decodes git output
-    # using the OS codepage (cp1252), not UTF-8, which raises
-    # UnicodeDecodeError on any byte outside that codepage -- observed for
-    # real analyzing Flask's actual history.
     repo_dir = tmp_path / "unicode_repo"
     repo_dir.mkdir()
     _git(repo_dir, "init", "-q", "-b", "master")
@@ -137,7 +132,6 @@ def test_handles_non_ascii_content_without_crashing(tmp_path):
     _git(repo_dir, "commit", "-q", "-m", "fix: correct the value \U0001f41b")
     fix_hash = _git(repo_dir, "rev-parse", "HEAD")
 
-    # Must not raise, regardless of what it finds.
     results = trace_inducing_commits(str(repo_dir), fix_hash, "f.py")
     assert isinstance(results, list)
 

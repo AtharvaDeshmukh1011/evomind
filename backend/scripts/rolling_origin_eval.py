@@ -1,14 +1,3 @@
-"""Rolling-origin (walk-forward) evaluation — a report-quality alternative
-to the single-split evaluation the dashboard shows.
-
-Usage:
-    .venv/Scripts/python.exe scripts/rolling_origin_eval.py --repo https://github.com/pallets/flask
-
-Slower than the main pipeline (repeats per-cutoff work once per fold) —
-meant for generating evaluation numbers for the write-up/defense, not for
-interactive use.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -47,7 +36,7 @@ def main() -> None:
 
     print("=== Cross-fold summary (mean ± std) ===")
     for model, stats in result.summary().items():
-        f1_std = stats["f1_std"] if stats["f1_std"] == stats["f1_std"] else 0.0  # NaN-safe (single fold)
+        f1_std = stats["f1_std"] if stats["f1_std"] == stats["f1_std"] else 0.0
         auc_std = stats["roc_auc_std"] if stats["roc_auc_std"] == stats["roc_auc_std"] else 0.0
         print(f"  {model:28s} F1={stats['f1_mean']:.3f}±{f1_std:.3f}  ROC-AUC={stats['roc_auc_mean']:.3f}±{auc_std:.3f}")
 

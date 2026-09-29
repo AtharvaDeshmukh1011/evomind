@@ -1,30 +1,3 @@
-"""LLM-assisted refinement of SZZ-identified bug-inducing commits.
-
-Plain SZZ (szz.py) traces a fix's changed lines back to whichever commit's
-`git blame` last touched them — but blame is a purely line-level heuristic,
-so it produces real false positives: a candidate "inducing" commit can be a
-formatting pass, a rename, or an unrelated refactor that happened to touch
-the same line, not the change that actually introduced the defect.
-
-This follows LLM4SZZ (Zhou et al., 2025 — arXiv:2504.01404, ACM Proceedings
-on Software Engineering): use an LLM, given the fix's own diff and a
-candidate's own diff, to assess whether that candidate is a plausible
-genuine bug-inducing change rather than a blame false positive. This is an
-applied technique following a published approach — not a novel
-contribution of this project. Related work exploring similar LLM-assisted
-SZZ variants: AgenticSZZ, AgentSZZ, MAS-SZZ.
-
-Runs against Groq (free API tier, no paid key required — same as
-evomind/llm/recommend.py). Needs GROQ_API_KEY; see https://console.groq.com.
-
-Scope: this only ever *removes* candidates plain SZZ would have accepted
-(false-positive filtering) — it never adds a candidate blame-based tracing
-didn't already find. Opt-in and bounded the same way szz.py's
-`refine_labels_with_szz` already is: only positively-labeled files, and
-only candidates that already pass the cutoff-date check (no LLM call spent
-on a candidate the date alone already disqualifies).
-"""
-
 from __future__ import annotations
 
 import json
@@ -62,15 +35,11 @@ class InducingAssessment(BaseModel):
 
 
 class LLMSZZError(RuntimeError):
-    """Raised when the LLM call fails; carries a user-facing message."""
+    pass
 
 
 @dataclass
 class AssessmentStats:
-    """Visibility into how much LLM assessment actually happened — so a
-    caller enabling this feature without a usable API key sees that it
-    silently fell back to plain-SZZ behavior, rather than assuming
-    filtering occurred when it didn't."""
     assessed: int = 0
     fallback: int = 0
 
@@ -135,8 +104,6 @@ def assess_candidate(
     except groq.APIConnectionError as exc:
         raise LLMSZZError("Could not reach the Groq API — check network connectivity.") from exc
     except groq.GroqError as exc:
-        # Raised at client construction (e.g. no API key configured at all),
-        # before any network call, so no HTTP-level error/status exists yet.
         raise LLMSZZError("Groq API key missing or invalid — set GROQ_API_KEY.") from exc
 
     text = (response.choices[0].message.content or "").strip()
@@ -151,22 +118,11 @@ def had_bug_before_cutoff_llm_assisted(
     client: groq.Groq | None = None,
     stats: AssessmentStats | None = None,
 ) -> bool:
-    """Same contract as szz.had_bug_before_cutoff, but each blame-identified
-    candidate that already passes the cutoff-date check is additionally
-    assessed by an LLM (LLM4SZZ-style) before being accepted, filtering out
-    false positives (formatting/rename/unrelated-refactor candidates) that
-    plain blame-based SZZ can't distinguish from a real inducing change.
-
-    Falls back to accepting the candidate (plain-SZZ behavior) if the LLM
-    call itself fails for it — a missing API key or a transient error
-    should degrade to the existing heuristic, not silently drop a label
-    plain SZZ would have kept, and not crash the analysis.
-    """
     for fix_hash in candidate_fix_commits:
-        fix_diff = None  # fetched lazily — only if there's a candidate to assess
+        fix_diff = None
         for candidate in trace_inducing_commits(repo_path, fix_hash, file_path):
             if candidate.author_date > cutoff:
-                continue  # date alone disqualifies it; no LLM call needed
+                continue
 
             if fix_diff is None:
                 fix_diff = commit_diff_text(repo_path, fix_hash, file_path)
@@ -196,18 +152,11 @@ def refine_labels_with_llm_szz(
     horizon_end: datetime,
     client: groq.Groq | None = None,
 ) -> tuple[pd.DataFrame, AssessmentStats]:
-    """Same contract and scope as szz.refine_labels_with_szz (only re-checks
-    currently-positive files, bounded cost), but each candidate is filtered
-    through `had_bug_before_cutoff_llm_assisted` instead of the plain
-    date-only check — see this module's docstring for why.
-
-    Returns the refined DataFrame plus stats on how many candidates were
-    actually LLM-assessed vs. fell back to plain-SZZ behavior, so a caller
-    can tell whether the filtering actually ran (e.g. it silently no-ops,
-    by design, when no API key is configured).
-    """
-    positive_files = set(train_df.loc[train_df["is_bug_prone"] == 1, "file_path"])
     stats = AssessmentStats()
+    if train_df.empty:
+        return train_df, stats
+
+    positive_files = set(train_df.loc[train_df["is_bug_prone"] == 1, "file_path"])
     if not positive_files:
         return train_df, stats
 

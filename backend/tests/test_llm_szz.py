@@ -29,9 +29,6 @@ def _fake_client(payload: dict) -> MagicMock:
     return client
 
 
-# --- assess_candidate (mocked LLM) ---
-
-
 def test_assess_candidate_parses_plausible_true():
     client = _fake_client({"is_plausible_cause": True, "reason": "changes the same conditional the fix corrects"})
     result = assess_candidate("a.py", "fix diff", "candidate diff", "refactor", client=client)
@@ -71,9 +68,6 @@ def test_assess_candidate_auth_error_wrapped():
 
 
 def test_assess_candidate_no_key_configured_wrapped(monkeypatch):
-    # groq.Groq() raises a bare GroqError (not AuthenticationError) when no
-    # key is configured anywhere -- it fails at client construction, before
-    # any network call, so no HTTP-level error/status exists yet.
     def _raise_no_key(*args, **kwargs):
         raise groq.GroqError("The api_key client option must be set")
 
@@ -87,11 +81,7 @@ def test_assess_candidate_truncates_long_diffs():
     huge_diff = "+x = 1\n" * 5000
     assess_candidate("a.py", huge_diff, huge_diff, "m", client=client)
     prompt = client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
-    # Each diff block is capped at MAX_DIFF_CHARS -- the full 35000-char diff must not appear whole.
     assert len(prompt) < len(huge_diff)
-
-
-# --- had_bug_before_cutoff_llm_assisted (real git repo + mocked LLM) ---
 
 
 def _git(repo_dir, *args):
@@ -142,8 +132,6 @@ def test_llm_rejects_false_positive_candidate(bug_repo):
 
 
 def test_date_filter_still_applies_before_any_llm_call(bug_repo):
-    # Cutoff before the bug existed: candidate is disqualified by date alone,
-    # so no LLM call should even be attempted.
     cutoff = bug_repo["bug_date"] - timedelta(days=5)
     client = MagicMock()
     result = had_bug_before_cutoff_llm_assisted(
@@ -163,7 +151,7 @@ def test_llm_failure_falls_back_to_plain_szz_behavior(bug_repo):
     result = had_bug_before_cutoff_llm_assisted(
         str(bug_repo["dir"]), "f.py", [bug_repo["fix"]], cutoff, client=client, stats=stats
     )
-    assert result is True  # falls back to accepting, same as plain SZZ would
+    assert result is True
     assert stats.fallback == 1
     assert stats.assessed == 0
 
@@ -177,9 +165,6 @@ def test_stats_track_successful_assessment(bug_repo):
     )
     assert stats.assessed == 1
     assert stats.fallback == 0
-
-
-# --- refine_labels_with_llm_szz (DataFrame-level orchestration) ---
 
 
 def _rec(path, date, commit_hash="x", bug=False):

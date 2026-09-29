@@ -1,13 +1,3 @@
-"""Mines commit history from a Git repository using PyDriller.
-
-File *content* snapshots (both "as of a cutoff date" and "current") are
-deliberately not produced here — see `evomind/ingestion/tree_snapshot.py`
-for why replaying commit diffs chronologically to reconstruct a point-in-time
-tree is unsound for non-linear history, and how it's done correctly instead.
-This module only extracts the process-metric inputs: who changed what file,
-when, by how much, and whether the commit looks like a bug fix.
-"""
-
 from __future__ import annotations
 
 import re
@@ -18,9 +8,6 @@ from pydriller import Repository
 
 from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
 
-# Keyword heuristic for identifying bug-fixing commits, following the
-# widely used approach from Kim et al. and later defect-prediction studies
-# (e.g. the SZZ-style labeling referenced in Malhotra & Khanna, 2022).
 BUG_KEYWORDS = re.compile(
     r"\b(fix(e[sd])?|bug|defect|error|crash|fault|patch|issue|regression|"
     r"broken|fail(s|ed|ure)?|npe|exception)\b",
@@ -54,11 +41,6 @@ def mine_repository(
     to: datetime | None = None,
     only_source_exts: tuple[str, ...] = SUPPORTED_EXTENSIONS,
 ) -> MinedRepository:
-    """Walks commit history and records per-file change events.
-
-    `repo_path_or_url` may be a local path or a remote Git URL; PyDriller
-    clones remote repos to a temp directory automatically.
-    """
     mined = MinedRepository()
 
     for commit in Repository(repo_path_or_url, since=since, to=to).traverse_commits():

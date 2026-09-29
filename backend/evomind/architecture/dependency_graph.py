@@ -1,19 +1,3 @@
-"""Intra-repo dependency graph, coupling metrics, and cycle detection.
-
-Python imports are parsed with the stdlib `ast` module and resolved to
-dotted module names. JS/TS and Java imports are extracted with regexes (full
-parsers are out of scope) — JS/TS resolved as relative file paths the way
-Node/bundler resolution actually works, Java resolved as fully-qualified
-class names built from each file's own `package` declaration, since Java's
-package name is self-describing rather than purely directory-based like
-Python. All three resolve purely within the mined snapshot — external
-packages/stdlib imports never match an internal file, so they're silently
-dropped rather than producing external nodes. This keeps the graph scoped
-to "what this repo's own files depend on," which is what coupling/cycle
-analysis actually needs. Other languages are not yet supported; their files
-are simply excluded from the graph.
-"""
-
 from __future__ import annotations
 
 import ast
@@ -26,12 +10,6 @@ JS_TS_EXTENSIONS = (".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs")
 
 
 def _path_to_module(file_path: str) -> str:
-    """Converts a repo-relative file path to a dotted module name.
-
-    e.g. "src/flask/app.py" -> "flask.app" (a leading src/ or lib/ container
-    directory is stripped, matching common layout conventions),
-    "flask/__init__.py" -> "flask".
-    """
     parts = file_path.replace("\\", "/").split("/")
     if parts and parts[0] in ("src", "lib"):
         parts = parts[1:]
@@ -48,12 +26,10 @@ def _path_to_module(file_path: str) -> str:
 
 
 def _package_of(module: str) -> str:
-    """The parent package of a dotted module name, or "" for a top-level module."""
     return module.rsplit(".", 1)[0] if "." in module else ""
 
 
 def _extract_imported_modules(source: str, current_module: str) -> set[str]:
-    """Parses one file's AST and returns the dotted module names it imports."""
     try:
         tree = ast.parse(source)
     except SyntaxError:
@@ -68,8 +44,6 @@ def _extract_imported_modules(source: str, current_module: str) -> set[str]:
                 modules.add(alias.name)
         elif isinstance(node, ast.ImportFrom):
             if node.level and node.level > 0:
-                # Relative import: walk up (level - 1) packages from the
-                # current module's own package before appending node.module.
                 base_parts = current_package.split(".") if current_package else []
                 up = node.level - 1
                 base_parts = base_parts[: len(base_parts) - up] if up else base_parts
@@ -79,20 +53,12 @@ def _extract_imported_modules(source: str, current_module: str) -> set[str]:
                 target = node.module or ""
             if target:
                 modules.add(target)
-                # `from a.b import c` — c might itself be a submodule, not
-                # just a name, so register that possibility too.
                 for alias in node.names:
                     modules.add(f"{target}.{alias.name}")
 
     return modules
 
 
-# Covers the common ES module and CommonJS forms: `import x from '...'`,
-# `import {x} from '...'`, `export {x} from '...'`, `export * from '...'`,
-# `require('...')`, and dynamic `import('...')`. Not a real parser — misses
-# unusual formatting (e.g. a specifier split across lines) and can't
-# distinguish a real import from a look-alike inside a string/comment, the
-# same class of tradeoff as the bug-fix keyword heuristic elsewhere.
 _JS_IMPORT_PATTERN = re.compile(
     r"""(?:\bfrom\s+|\brequire\(\s*|\bimport\(\s*)['"]([^'"]+)['"]"""
 )
@@ -106,15 +72,8 @@ def _extract_js_imports(source: str) -> set[str]:
 
 
 def _resolve_js_import(current_file: str, specifier: str, path_lookup: dict[str, str]) -> str | None:
-    """Resolves an import specifier the way Node/bundler resolution does:
-    relative to the importing file's directory, trying each supported
-    extension and an `index.*` fallback for directory imports.
-
-    `path_lookup` maps forward-slash-normalized paths (specifiers are always
-    forward-slash, regardless of host OS) to the snapshot's original key.
-    """
     if not specifier.startswith("."):
-        return None  # bare specifier — an external package (node_modules), not an internal file
+        return None
 
     current_dir = posixpath.dirname(current_file.replace(os.sep, "/"))
     resolved_base = posixpath.normpath(posixpath.join(current_dir, specifier))
@@ -130,37 +89,29 @@ def _resolve_js_import(current_file: str, specifier: str, path_lookup: dict[str,
     return None
 
 
-# Package declaration must be the first non-comment statement in a Java
-# file — one per file, so a plain search (not MULTILINE-anchored) is fine.
 _JAVA_PACKAGE_PATTERN = re.compile(r"\bpackage\s+([\w.]+)\s*;")
 _JAVA_IMPORT_PATTERN = re.compile(r"^\s*import\s+(?:static\s+)?([\w.]+)(\.\*)?\s*;", re.MULTILINE)
 
 
 def _java_class_name(file_path: str) -> str:
-    """The bare class name Java expects: the filename without its extension."""
     name = file_path.replace("\\", "/").rsplit("/", 1)[-1]
     return name[:-5] if name.endswith(".java") else name
 
 
 def _java_full_class_name(file_path: str, source: str) -> str:
-    """`package` declaration + filename — Java's own naming convention,
-    self-describing unlike Python's directory-only convention, so no
-    src-root stripping/guessing is needed here."""
     match = _JAVA_PACKAGE_PATTERN.search(source)
     class_name = _java_class_name(file_path)
     return f"{match.group(1)}.{class_name}" if match else class_name
 
 
 def _extract_java_imports(source: str) -> set[tuple[str, bool]]:
-    """Returns (dotted_name, is_wildcard) pairs — `import a.b.C;` yields
-    ("a.b.C", False); `import a.b.*;` yields ("a.b", True)."""
     return {(m.group(1), bool(m.group(2))) for m in _JAVA_IMPORT_PATTERN.finditer(source)}
 
 
 @dataclass
 class ImportEdge:
-    source: str  # importing file
-    target: str  # imported file
+    source: str
+    target: str
 
 
 @dataclass
@@ -209,7 +160,6 @@ def _build_js_edges(js_snapshots: dict[str, str]) -> list[ImportEdge]:
 def _build_java_edges(java_snapshots: dict[str, str]) -> list[ImportEdge]:
     full_name_to_file = {_java_full_class_name(path, src): path for path, src in java_snapshots.items()}
 
-    # For wildcard imports: every known class under a given package prefix.
     files_by_package: dict[str, list[str]] = {}
     for full_name, path in full_name_to_file.items():
         files_by_package.setdefault(_package_of(full_name), []).append(path)
@@ -232,14 +182,6 @@ def _build_java_edges(java_snapshots: dict[str, str]) -> list[ImportEdge]:
 
 
 def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
-    """Builds a graph of import edges restricted to files present in `snapshots`.
-
-    Python, JS/TS, and Java files are each resolved with their own logic
-    (dotted module names, relative file paths, and fully-qualified class
-    names respectively) into one unified graph. Files in languages this
-    module doesn't yet parse are excluded entirely — not listed as isolated
-    nodes, since we never actually looked at their imports.
-    """
     py_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".py")}
     js_snapshots = {path: src for path, src in snapshots.items() if path.endswith(JS_TS_EXTENSIONS)}
     java_snapshots = {path: src for path, src in snapshots.items() if path.endswith(".java")}
@@ -256,13 +198,12 @@ def build_dependency_graph(snapshots: dict[str, str]) -> DependencyGraph:
 @dataclass
 class CouplingMetrics:
     file_path: str
-    afferent: int  # Ca — files that import this one
-    efferent: int  # Ce — files this one imports
-    instability: float  # Ce / (Ce + Ca); 0.0 for an isolated file
+    afferent: int
+    efferent: int
+    instability: float
 
 
 def compute_coupling(graph: DependencyGraph) -> list[CouplingMetrics]:
-    """Afferent/efferent coupling and instability (Robert C. Martin's I metric) per file."""
     efferent: dict[str, set[str]] = {f: set() for f in graph.files}
     afferent: dict[str, set[str]] = {f: set() for f in graph.files}
 
@@ -279,11 +220,6 @@ def compute_coupling(graph: DependencyGraph) -> list[CouplingMetrics]:
 
 
 def find_cyclic_groups(graph: DependencyGraph) -> list[list[str]]:
-    """Strongly connected components of size > 1 — genuine circular dependency
-    clusters (mutual reachability), not just linear import chains.
-
-    Implemented as Tarjan's algorithm.
-    """
     adjacency: dict[str, list[str]] = {f: [] for f in graph.files}
     for edge in graph.edges:
         adjacency[edge.source].append(edge.target)

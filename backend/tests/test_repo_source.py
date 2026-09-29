@@ -44,10 +44,6 @@ def test_ssh_auth_failure_raises_clear_error():
 
 
 def test_not_found_repo_mentions_both_possibilities_not_a_hard_claim():
-    # GitHub (and most hosts) return "not found" for a private repo you can't
-    # see, rather than "access denied" -- so this is genuinely ambiguous
-    # between a typo'd URL and a real private repo, and the message should
-    # say so rather than confidently asserting either one.
     error = _clone_error("remote: Repository not found.\nfatal: repository 'https://github.com/x/y.git/' not found\n")
     with patch("subprocess.run", side_effect=error):
         with pytest.raises(ValueError, match="Could not find") as exc_info:

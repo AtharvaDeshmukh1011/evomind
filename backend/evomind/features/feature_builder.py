@@ -1,14 +1,3 @@
-"""Builds a per-file, leakage-safe feature table for bug-proneness prediction.
-
-Process metrics (churn, commit frequency, author count, recent bug-fix
-history) are computed only from commits at or before `cutoff`. The label is
-whether the file was touched by a bug-fixing commit strictly after `cutoff`
-within `horizon_days`. Code metrics are computed on the file content
-snapshot as of `cutoff`. This time-based split mirrors the evaluation
-protocol used in the defect-prediction literature and avoids using future
-information to predict the past.
-"""
-
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -25,9 +14,6 @@ def build_feature_table(
     snapshots: dict[str, str],
     horizon_days: int = 90,
 ) -> pd.DataFrame:
-    """`snapshots` must be an exact file-tree read (see `tree_snapshot.py`)
-    for the point in time `cutoff` represents — not a chronological replay,
-    which can misattribute content under non-linear history."""
     horizon_end = cutoff + timedelta(days=horizon_days)
 
     history: dict[str, list[FileCommitRecord]] = {}

@@ -77,7 +77,6 @@ def test_stream_emits_progress_then_result():
     assert result_data["repo"] == "https://example.com/repo.git"
     assert result_data["best_model"] == "random_forest"
 
-    # The streamed result must also populate the /recommend cache, same as POST /analyze.
     assert "https://example.com/repo.git" in main._last_result
 
 
@@ -100,10 +99,6 @@ def test_stream_emits_error_event_on_value_error():
 
 
 def test_stream_rejects_local_path_as_proper_sse_error_not_broken_connection(monkeypatch, tmp_path):
-    # This is the scenario the fix specifically targets: raising an
-    # HTTPException here instead of a caught ValueError would break the SSE
-    # stream before it starts, and the browser's EventSource would show a
-    # generic "connection lost" message instead of this specific one.
     monkeypatch.delenv("EVOMIND_ALLOWED_LOCAL_REPO_ROOT", raising=False)
     with patch("evomind.api.main.run_pipeline") as mocked:
         with client.stream("GET", "/analyze/stream", params={"repo": str(tmp_path)}) as resp:
@@ -130,9 +125,6 @@ def _fake_rolling_origin_result() -> RollingOriginResult:
     )
     return RollingOriginResult(
         repo="https://example.com/repo.git",
-        # A single fold is deliberate: pandas' .std() over one observation
-        # is NaN (division by zero, ddof=1) -- this is exactly the case the
-        # API must sanitize before it hits json.dumps().
         folds=[
             FoldResult(
                 train_cutoff="2023-01-01T00:00:00", test_cutoff="2023-06-01T00:00:00",
@@ -166,8 +158,6 @@ def test_rolling_origin_stream_emits_progress_then_result():
     result_data = json.loads(events[-1][1])
     assert result_data["repo"] == "https://example.com/repo.git"
     assert len(result_data["folds"]) == 1
-    # A single-observation std comes back as NaN from pandas -- must be
-    # sanitized to 0.0, since bare NaN is not valid JSON and breaks JSON.parse.
     assert result_data["summary"]["random_forest"]["f1_std"] == 0.0
 
 

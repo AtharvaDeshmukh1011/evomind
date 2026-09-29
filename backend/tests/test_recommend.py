@@ -67,7 +67,7 @@ def test_generate_recommendation_strips_markdown_fences():
 
 def test_generate_recommendation_truncates_long_source():
     client = _fake_client({"summary": "ok", "suggestions": []})
-    huge_source = "x = 1\n" * 10000  # far beyond MAX_SOURCE_CHARS
+    huge_source = "x = 1\n" * 10000
 
     generate_recommendation(
         file_path="big.py", risk_score=0.5, metrics={}, source=huge_source, client=client
@@ -100,9 +100,6 @@ def test_authentication_error_wrapped():
 
 
 def test_missing_credentials_wrapped(monkeypatch):
-    # groq.Groq() raises a bare GroqError (not AuthenticationError) when no
-    # key is configured anywhere -- it fails at client construction, before
-    # any network call, so no HTTP-level error/status exists yet.
     def _raise_no_key(*args, **kwargs):
         raise groq.GroqError("The api_key client option must be set")
 

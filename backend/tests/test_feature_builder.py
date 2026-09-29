@@ -23,7 +23,7 @@ def test_label_true_for_bug_fix_within_horizon():
     mined = MinedRepository(
         records=[
             _rec("a.py", datetime(2023, 6, 1)),
-            _rec("a.py", datetime(2024, 2, 1), bug=True),  # within 90-day horizon
+            _rec("a.py", datetime(2024, 2, 1), bug=True),
         ]
     )
     df = build_feature_table(mined, cutoff=cutoff, snapshots={"a.py": SOURCE}, horizon_days=90)
@@ -35,7 +35,7 @@ def test_label_false_when_bug_fix_outside_horizon():
     mined = MinedRepository(
         records=[
             _rec("a.py", datetime(2023, 6, 1)),
-            _rec("a.py", datetime(2024, 6, 1), bug=True),  # well past 90-day horizon
+            _rec("a.py", datetime(2024, 6, 1), bug=True),
         ]
     )
     df = build_feature_table(mined, cutoff=cutoff, snapshots={"a.py": SOURCE}, horizon_days=90)

@@ -13,9 +13,6 @@ client = TestClient(main.app)
 
 
 def _fake_pipeline_result() -> PipelineResult:
-    # Mirrors what run_pipeline actually produces: numpy int64/float64 dtypes,
-    # not plain Python ints/floats — this is what tripped json.dumps in
-    # evomind/llm/recommend.py before the .item() coercion fix.
     metrics_row = {col: 1 for col in FEATURE_COLUMNS}
     current_metrics = pd.DataFrame([{"file_path": "app.py", **metrics_row, "risk_score": 0.81}])
 
@@ -53,7 +50,6 @@ def test_recommend_serializes_numpy_metrics_without_error():
     assert body["file_path"] == "app.py"
     assert body["suggestions"][0]["priority"] == "low"
 
-    # The metrics dict passed to the LLM layer must be JSON-safe plain types
     passed_metrics = mock_gen.call_args.kwargs["metrics"]
     for value in passed_metrics.values():
         assert type(value) in (int, float)

@@ -77,7 +77,7 @@ def test_local_repo_path_rejected_without_allowed_root(monkeypatch, tmp_path):
 
     assert resp.status_code == 422
     assert "disabled" in resp.json()["detail"]
-    mocked.assert_not_called()  # must reject before ever touching the filesystem
+    mocked.assert_not_called()
 
 
 def test_local_repo_path_rejected_outside_allowed_root(monkeypatch, tmp_path):

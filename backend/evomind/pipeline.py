@@ -1,14 +1,9 @@
-"""Shared orchestration: mine -> extract features -> train -> score.
-
-Used by both the CLI script (scripts/run_pipeline.py) and the FastAPI
-service (evomind/api/main.py) so the two entry points can't drift apart.
-"""
-
 from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import PurePosixPath
 
 import pandas as pd
 
@@ -35,12 +30,30 @@ class PipelineResult:
     feature_table: pd.DataFrame
     training_report: TrainingReport
     file_risk_scores: pd.DataFrame
-    current_metrics: pd.DataFrame  # file_path + FEATURE_COLUMNS + risk_score, for recommendations
-    latest_snapshots: dict[str, str]  # file_path -> current source content
+    current_metrics: pd.DataFrame
+    latest_snapshots: dict[str, str]
     dependency_graph: DependencyGraph
-    coupling: list  # list[CouplingMetrics]
+    coupling: list
     cyclic_groups: list[list[str]]
-    llm_szz_stats: AssessmentStats | None = None  # None unless use_llm_szz=True
+    llm_szz_stats: AssessmentStats | None = None
+
+
+def _no_analysable_files_message(repo: str, mined, cutoff: datetime) -> str:
+    found = sorted(
+        {PurePosixPath(rec.file_path.replace("\\", "/")).suffix for rec in mined.records}
+        - {""}
+    )
+    return (
+        f"No analysable files remain for '{repo}' at the "
+        f"{cutoff.date().isoformat()} cutoff. Mining produced "
+        f"{len(mined.records)} change records covering {len(found)} supported "
+        f"extension(s) ({', '.join(found) if found else 'none'}), but none of "
+        "those files existed at the cutoff with measurable code. This usually "
+        "means the repository is written in a language EvoMind cannot measure "
+        "— Elixir and Haskell, for example, are not supported. Supported "
+        "languages include Python, JavaScript/TypeScript, Java, Go, C/C++, C#, "
+        "Ruby, PHP, Rust, Kotlin, Swift and Dart."
+    )
 
 
 def run_pipeline(
@@ -66,10 +79,6 @@ def run_pipeline(
         if not mined.records:
             raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
 
-        # Exact tree reads at a resolved commit, not a chronological diff
-        # replay — see tree_snapshot.py for why the replay approach silently
-        # corrupts content under non-linear history (a branch predating a
-        # rename, merged after it, "resurrects" the renamed-away path).
         report_progress("Reading code at the training cutoff…")
         cutoff_commit = commit_at_or_before(path, cutoff)
         if cutoff_commit is None:
@@ -84,15 +93,11 @@ def run_pipeline(
         report_progress("Computing code metrics and building features…")
         train_df = build_feature_table(mined, cutoff=cutoff, snapshots=cutoff_snapshots, horizon_days=horizon_days)
 
-        # SZZ needs `git blame`/`git diff` against the local clone, so this
-        # has to run before the `with` block exits and the clone is cleaned
-        # up. Keeps only the labels whose underlying defect actually existed
-        # at cutoff — see szz.py for why the naive heuristic overcounts.
+        if train_df.empty:
+            raise ValueError(_no_analysable_files_message(repo, mined, cutoff))
+
         llm_szz_stats: AssessmentStats | None = None
         if use_llm_szz:
-            # LLM4SZZ-style false-positive filtering on top of blame-based
-            # tracing (see llm_szz.py) — opt-in since it needs a Groq API
-            # key and adds real latency per positively-labeled file.
             report_progress("Tracing bug-inducing commits (SZZ + LLM re-ranking)…")
             train_df, llm_szz_stats = refine_labels_with_llm_szz(
                 train_df, mined.records, path, cutoff, horizon_end
@@ -101,19 +106,20 @@ def run_pipeline(
             report_progress("Tracing bug-inducing commits (SZZ)…")
             train_df = refine_labels_with_szz(train_df, mined.records, path, cutoff, horizon_end)
 
-    if len(train_df) < 20 or train_df["is_bug_prone"].nunique() < 2:
+    if train_df.empty:
+        raise ValueError(_no_analysable_files_message(repo, mined, cutoff))
+
+    label_classes = train_df["is_bug_prone"].nunique()
+    if len(train_df) < 20 or label_classes < 2:
         raise ValueError(
-            f"Only {len(train_df)} files / "
-            f"{train_df['is_bug_prone'].nunique()} label classes after feature "
-            "extraction — not enough signal to train. Try a larger repo, "
+            f"Only {len(train_df)} files / {label_classes} label classes after "
+            "feature extraction — not enough signal to train. Try a larger repo, "
             "longer horizon_days, or an earlier train_fraction."
         )
 
     report_progress("Training Random Forest and Logistic Regression models…")
     report = train_and_evaluate(train_df)
 
-    # Score the repo's current state (as of `end`) with no future horizon to
-    # label against — this is the actual "predict what's risky now" output.
     report_progress("Scoring the repository's current files…")
     current_df = build_feature_table(
         mined, cutoff=end, snapshots=latest_snapshots, horizon_days=0

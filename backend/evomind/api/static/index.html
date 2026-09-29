@@ -17,8 +17,8 @@
     --row-alt:        rgba(11,11,11,0.02);
     --baseline:       #c3c2b7;
     --border:         rgba(11,11,11,0.10);
-    --series-1:       #2a78d6; /* blue — Logistic Regression */
-    --series-2:       #eb6834; /* orange — Random Forest */
+    --series-1:       #2a78d6;
+    --series-2:       #eb6834;
     --seq-100:        #cde2fb;
     --seq-450:        #2a78d6;
     --seq-700:        #0d366b;
@@ -173,7 +173,6 @@
   .status-line { font-size: 13px; color: var(--text-secondary); margin: -8px 0 20px; min-height: 18px; display: flex; align-items: center; gap: 6px; }
   .status-line.error { color: var(--status-critical); }
 
-  /* --- progress panel --- */
   .progress-panel {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
     padding: 0; margin-bottom: 20px; display: none; box-shadow: var(--shadow-md); overflow: hidden;
@@ -398,9 +397,6 @@
     font-size: 11.5px; color: var(--text-muted); border-top: 1px dashed var(--gridline); margin-top: 14px; padding-top: 10px;
   }
 
-  /* #results itself no longer animates -- its .stat-tile/.panel children get
-     a staggered entrance from Motion (see animateIn() in the script below)
-     the first time results appear, which reduced-motion already skips. */
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
   @media (max-width: 720px) {
@@ -477,7 +473,7 @@
         <div class="stat-icon" style="color:var(--status-good)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none"/></svg></div>
         <div class="label">Best model</div>
         <div class="value" id="statBestModel">—</div>
-        <div class="sub" id="statBestF1">—</div>
+        <div class="sub" id="statBestScore">—</div>
       </div>
       <div class="stat-tile">
         <div class="stat-icon" style="color:var(--status-critical)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 21 19H3Z"/><path d="M12 8.5v5"/><circle cx="12" cy="16.3" r="0.9" fill="currentColor" stroke="none"/></svg></div>
@@ -609,25 +605,17 @@
   </div>
 </div>
 
-<!-- Self-hosted, pinned copy of https://motion.dev's vanilla-JS build (v13.2.0) --
-     vendored rather than loaded from a CDN so animations don't depend on
-     internet access during a live demo. Exposes window.Motion (animate, stagger). -->
 <script src="/static/vendor/motion.min.js"></script>
 <script>
 const { animate, stagger } = Motion;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Staggered entrance for a group of elements (stat tiles, panels) -- only
-// meant for the moment they first appear, not every re-render.
 function animateIn(selector, staggerSeconds = 0.06, startDelay = 0) {
   if (prefersReducedMotion) return;
   animate(selector, { opacity: [0, 1], transform: ['translateY(14px)', 'translateY(0)'] },
     { duration: 0.4, delay: stagger(staggerSeconds, { startDelay }), easing: [0.22, 1, 0.36, 1] });
 }
 
-// Grows every [data-w] bar inside `container` from 0 to its target width --
-// data-w carries the target percentage; the inline width is intentionally
-// left unset in the rendered HTML so this is what establishes it.
 function animateBarFills(container) {
   container.querySelectorAll('[data-w]').forEach(el => {
     const target = `${el.dataset.w}%`;
@@ -637,8 +625,6 @@ function animateBarFills(container) {
   });
 }
 
-// Counts a stat tile's number up from 0 rather than popping straight to the
-// final value -- purely cosmetic, so reduced-motion just sets it directly.
 function animateNumber(el, to, { decimals = 0, suffix = '', duration = 0.8 } = {}) {
   if (prefersReducedMotion || !isFinite(to)) { el.textContent = to.toFixed(decimals) + suffix; return; }
   animate(0, to, { duration, easing: [0.22, 1, 0.36, 1], onUpdate: latest => { el.textContent = latest.toFixed(decimals) + suffix; } });
@@ -668,19 +654,14 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   root.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
 });
 
-/* ---------------- select-all on focus/click (address-bar style) ---------------- */
-
 function selectAllOnFocus(el) {
   el.addEventListener('focus', () => el.select());
-  // Without this, the mouseup that follows the click which caused focus
-  // collapses the selection to a cursor position, undoing el.select() above.
+
   el.addEventListener('mouseup', (e) => {
     if (document.activeElement === el) e.preventDefault();
   });
 }
 ['repo', 'horizon', 'trainFraction'].forEach(id => selectAllOnFocus(document.getElementById(id)));
-
-/* ---------------- progress panel ---------------- */
 
 const progressPanel = document.getElementById('progressPanel');
 const progressSteps = document.getElementById('progressSteps');
@@ -726,8 +707,6 @@ function finishProgress() {
   progressPanel.classList.remove('active');
 }
 
-/* ---------------- analyze (SSE) ---------------- */
-
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   const repo = document.getElementById('repo').value.trim();
@@ -764,12 +743,11 @@ form.addEventListener('submit', (e) => {
   });
 
   es.addEventListener('error', (ev) => {
-    // Two things share the name "error": our own server-sent {status, detail}
-    // event, and the browser's native connection-failure event (no ev.data).
+
     finishProgress();
     let message = 'Analysis failed — connection to the server was lost.';
     if (ev.data) {
-      try { message = JSON.parse(ev.data).detail || message; } catch (_) { /* keep default */ }
+      try { message = JSON.parse(ev.data).detail || message; } catch (_) {                    }
     }
     statusLine.className = 'status-line error';
     statusLine.textContent = message;
@@ -781,8 +759,6 @@ form.addEventListener('submit', (e) => {
     es.close();
   });
 });
-
-/* ---------------- render ---------------- */
 
 let riskFilesData = [];
 let riskSort = { key: 'risk_score', dir: 'desc' };
@@ -803,7 +779,8 @@ function render(data) {
 
   const best = data.evaluation.find(r => r.model_name === data.best_model) || data.evaluation[0];
   document.getElementById('statBestModel').textContent = data.best_model === 'random_forest' ? 'Random Forest' : 'Logistic Regression';
-  document.getElementById('statBestF1').textContent = `F1 = ${best.f1.toFixed(3)}`;
+  document.getElementById('statBestScore').textContent =
+    `ROC-AUC = ${Number.isFinite(best.roc_auc) ? best.roc_auc.toFixed(3) : 'n/a'}`;
 
   const top = data.top_risk_files[0];
   if (top) {
@@ -828,9 +805,6 @@ function render(data) {
   renderMetricTable(data.evaluation);
   renderFeatureImportance(data.feature_importances, data.feature_importance_kind);
 
-  // Fixed "original rank" survives re-sorting/filtering, so "#" always means
-  // "this file's position in the model's own risk ranking," not "position
-  // in whatever view you're currently looking at."
   riskFilesData = data.top_risk_files.map((f, i) => ({ ...f, originalRank: i + 1 }));
   riskFilter = '';
   document.getElementById('riskSearch').value = '';
@@ -843,9 +817,6 @@ function render(data) {
   applyCouplingView();
   renderCycles(data.cyclic_groups);
 
-  // Only animate the reveal the first time results appear in this session --
-  // re-analyzing (or re-sorting) shouldn't re-trigger an entrance animation
-  // on content that's already on screen.
   if (isFirstReveal) {
     animateIn('.stat-tile', 0.05);
     animateIn('#results > .panel', 0.06, 0.15);
@@ -881,9 +852,7 @@ function renderMetricTable(evaluation) {
 }
 
 function renderFeatureImportance(importances, kind) {
-  // The importances come from whichever model was selected, and the two
-  // models expose different quantities -- so label the panel from the
-  // backend rather than always claiming they're Random Forest importances.
+
   document.getElementById('featureImportanceDesc').textContent =
     kind ? `Feature importances — ${kind}.` : 'Feature importances from the selected model.';
 
@@ -899,8 +868,6 @@ function renderFeatureImportance(importances, kind) {
   `).join('');
   animateBarFills(container);
 }
-
-/* ---------------- sortable / filterable tables ---------------- */
 
 function sortRows(rows, key, dir) {
   return [...rows].sort((a, b) => {
@@ -1016,8 +983,6 @@ function renderCycles(cyclicGroups) {
   }
 }
 
-/* ---------------- AI recommendation modal ---------------- */
-
 const recModal = document.getElementById('recModal');
 const recModalCard = recModal.querySelector('.modal-card');
 const recBody = document.getElementById('recBody');
@@ -1072,8 +1037,6 @@ async function openRecommendation(filePath) {
   }
 }
 
-/* ---------------- rolling-origin evaluation ---------------- */
-
 const roBtn = document.getElementById('rollingOriginBtn');
 const roBtnLabel = roBtn.querySelector('.run-btn-label');
 const roProgress = document.getElementById('rollingOriginProgress');
@@ -1113,7 +1076,7 @@ roBtn.addEventListener('click', () => {
     roBtnLabel.textContent = 'Run rolling-origin evaluation';
     let message = 'Rolling-origin evaluation failed — connection to the server was lost.';
     if (ev.data) {
-      try { message = JSON.parse(ev.data).detail || message; } catch (_) { /* keep default */ }
+      try { message = JSON.parse(ev.data).detail || message; } catch (_) {                    }
     }
     roResults.innerHTML = `<div class="rec-error">${message}</div>`;
     es.close();

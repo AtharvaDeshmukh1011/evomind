@@ -58,7 +58,6 @@ def test_read_files_at_commit_filters_by_extension(small_repo):
 
 
 def test_read_files_at_commit_reflects_historical_state_not_current(small_repo):
-    # First commit only had a.py — b.py didn't exist yet.
     first_commit = subprocess.run(
         ["git", "-C", str(small_repo), "rev-list", "--max-parents=0", "HEAD"],
         check=True, capture_output=True, text=True,

@@ -1,9 +1,3 @@
-"""End-to-end EvoMind pipeline: mine a repo, build features, train, evaluate.
-
-Usage:
-    .venv/Scripts/python.exe scripts/run_pipeline.py --repo https://github.com/pallets/flask
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -54,7 +48,7 @@ def main() -> None:
             f"ROC-AUC={r.roc_auc:.3f}  AP={r.average_precision:.3f}  "
             f"(n={r.n_test}, positive_rate={r.positive_rate:.1%})"
         )
-    print(f"  Best model by F1: {result.training_report.best_model_name}")
+    print(f"  Best model by ROC-AUC: {result.training_report.best_model_name}")
 
     print("\n=== Top feature importances (Random Forest) ===")
     for name, importance in list(result.training_report.feature_importances.items())[:8]:

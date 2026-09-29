@@ -46,8 +46,6 @@ def test_external_import_produces_no_edge():
 
 
 def test_self_import_ignored():
-    # A file that imports its own module name (e.g. via a re-export pattern)
-    # must not create a self-loop edge.
     snapshots = {"pkg/a.py": "import pkg.a\n"}
     graph = build_dependency_graph(snapshots)
     assert graph.edges == []
@@ -99,9 +97,6 @@ def test_no_cycle_in_linear_chain():
     }
     graph = build_dependency_graph(snapshots)
     assert find_cyclic_groups(graph) == []
-
-
-# --- JS/TS ---
 
 
 def test_js_relative_import_with_extension_resolves():
@@ -185,7 +180,6 @@ def test_js_parent_directory_import_resolves():
 
 
 def test_js_bare_specifier_produces_no_edge():
-    # 'lodash' has no leading './' or '../' — it's an external package (node_modules).
     snapshots = {"src/a.js": "import _ from 'lodash';\n"}
     graph = build_dependency_graph(snapshots)
     assert graph.edges == []
@@ -210,9 +204,6 @@ def test_non_python_non_js_files_excluded_from_graph():
     graph = build_dependency_graph(snapshots)
     assert graph.files == []
     assert graph.edges == []
-
-
-# --- Java ---
 
 
 def test_java_import_creates_edge():

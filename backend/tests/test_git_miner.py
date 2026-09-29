@@ -16,8 +16,6 @@ def test_ignores_non_bug_commits():
 
 
 def test_default_extensions_are_not_python_only():
-    # Regression test: mining used to hardcode (".py",), so a repo with no
-    # Python files mined zero records and failed outright.
     default = inspect.signature(mine_repository).parameters["only_source_exts"].default
     assert ".py" in default
     assert ".js" in default

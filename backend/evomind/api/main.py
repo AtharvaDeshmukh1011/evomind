@@ -4,21 +4,25 @@ import json
 import os
 import queue
 import threading
+import time
+from collections import deque
 from pathlib import Path
 from typing import Iterator
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from evomind.ingestion.repo_source import is_remote
+from evomind.integrations.github import GitHubClient, GitHubError, parse_repo, verify_signature
 from evomind.llm.recommend import RecommendationError, generate_recommendation
 from evomind.ml.rolling_origin import run_rolling_origin_evaluation
 from evomind.ml.train import FEATURE_COLUMNS
 from evomind.pipeline import PipelineResult, run_pipeline
+from evomind.pr_risk import build_pr_report, render_comment, report_to_dict
 
 load_dotenv()
 
@@ -83,9 +87,25 @@ class ModelEval(BaseModel):
     n_test: int
 
 
+class RiskReason(BaseModel):
+    feature: str
+    label: str
+    value: float
+    percentile: float
+    impact: float
+
+
+class TrendPoint(BaseModel):
+    date: str
+    risk: float | None
+
+
 class RiskyFile(BaseModel):
     file_path: str
     risk_score: float
+    reasons: list[RiskReason] = []
+    trend: list[TrendPoint] = []
+    trend_delta: float | None = None
 
 
 class CoupledFile(BaseModel):
@@ -157,6 +177,13 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
+def _finite_or_none(value):
+    if value is None:
+        return None
+    value = float(value)
+    return value if value == value else None
+
+
 def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeResponse:
     top_risk = result.file_risk_scores.head(top_n)
 
@@ -175,7 +202,13 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
         feature_importances=result.training_report.feature_importances,
         feature_importance_kind=result.training_report.feature_importance_kind,
         top_risk_files=[
-            RiskyFile(file_path=row.file_path, risk_score=row.risk_score)
+            RiskyFile(
+                file_path=row.file_path,
+                risk_score=row.risk_score,
+                reasons=[RiskReason(**vars(r)) for r in getattr(row, "reasons", None) or []],
+                trend=[TrendPoint(**vars(t)) for t in getattr(row, "trend", None) or []],
+                trend_delta=_finite_or_none(getattr(row, "trend_delta", None)),
+            )
             for row in top_risk.itertuples()
         ],
         dependency_edge_count=len(result.dependency_graph.edges),
@@ -390,3 +423,103 @@ def recommend(req: RecommendRequest) -> RecommendResponse:
             for s in rec.suggestions
         ],
     )
+
+
+ANALYSIS_TTL_SECONDS = 6 * 60 * 60
+PR_ACTIONS = {"opened", "synchronize", "reopened", "ready_for_review"}
+_analysis_cache: dict[str, tuple[float, PipelineResult]] = {}
+_analysis_lock = threading.Lock()
+_webhook_log: deque = deque(maxlen=20)
+
+
+def _canonical(repo: str) -> str:
+    owner, name = parse_repo(repo)
+    return f"https://github.com/{owner}/{name}".lower()
+
+
+def _analysis_for(repo: str) -> PipelineResult:
+    key = _canonical(repo)
+    with _analysis_lock:
+        for cached_repo, result in _last_result.items():
+            try:
+                if _canonical(cached_repo) == key:
+                    return result
+            except ValueError:
+                continue
+        hit = _analysis_cache.get(key)
+        if hit and time.time() - hit[0] < ANALYSIS_TTL_SECONDS:
+            return hit[1]
+        owner, name = parse_repo(repo)
+        result = run_pipeline(f"https://github.com/{owner}/{name}")
+        _analysis_cache[key] = (time.time(), result)
+        return result
+
+
+def _check_pull_request(repo: str, number: int, post_comment: bool) -> dict:
+    owner, name = parse_repo(repo)
+    client = GitHubClient(os.environ.get("GITHUB_TOKEN"))
+    changed = client.pull_request_files(owner, name, number)
+    report = build_pr_report(_analysis_for(repo), f"{owner}/{name}", number, changed)
+    body = render_comment(report)
+    comment_url = None
+    if post_comment:
+        comment_url = (client.upsert_comment(owner, name, number, body) or {}).get("html_url")
+    return {**report_to_dict(report), "comment_markdown": body, "comment_url": comment_url}
+
+
+class PRRiskRequest(BaseModel):
+    repo: str = Field(..., description="GitHub repository URL, e.g. https://github.com/pallets/click")
+    pr_number: int = Field(..., ge=1)
+    post_comment: bool = Field(False, description="Post or update the report as a PR comment (needs GITHUB_TOKEN)")
+
+
+@app.post("/pr-risk")
+def pr_risk(req: PRRiskRequest) -> dict:
+    try:
+        return _check_pull_request(req.repo, req.pr_number, req.post_comment)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except GitHubError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+def _run_webhook_check(repo: str, number: int) -> None:
+    started = time.time()
+    try:
+        outcome = _check_pull_request(repo, number, post_comment=True)
+        status = f"commented ({outcome['high_risk_count']} high-risk files)"
+    except Exception as exc:
+        status = f"failed: {exc}"
+    _webhook_log.appendleft({"repo": repo, "pr": number, "status": status,
+                             "seconds": round(time.time() - started, 1), "at": time.strftime("%Y-%m-%d %H:%M:%S")})
+
+
+@app.post("/webhook/github", status_code=202)
+async def github_webhook(request: Request, background: BackgroundTasks) -> dict:
+    secret = os.environ.get("GITHUB_WEBHOOK_SECRET")
+    if not secret:
+        raise HTTPException(status_code=503, detail="Webhook disabled: set GITHUB_WEBHOOK_SECRET on the server.")
+    body = await request.body()
+    if not verify_signature(secret, body, request.headers.get("X-Hub-Signature-256")):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature.")
+
+    event = request.headers.get("X-GitHub-Event", "")
+    if event == "ping":
+        return {"status": "pong"}
+    if event != "pull_request":
+        return {"status": "ignored", "reason": f"event '{event}' is not handled"}
+
+    payload = json.loads(body)
+    action = payload.get("action")
+    if action not in PR_ACTIONS:
+        return {"status": "ignored", "reason": f"action '{action}' does not change the code"}
+
+    repo = payload["repository"]["html_url"]
+    number = payload["pull_request"]["number"]
+    background.add_task(_run_webhook_check, repo, number)
+    return {"status": "accepted", "repo": repo, "pr": number}
+
+
+@app.get("/webhook/github/recent")
+def github_webhook_recent() -> list:
+    return list(_webhook_log)

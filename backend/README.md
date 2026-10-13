@@ -320,6 +320,52 @@ positive, not every fix commit in the repo's history. Don't run concurrent
 is CPU- and I/O-heavy and multiple runs at once will make all of them
 slower, not just share the wait.
 
+## Explanations, risk trends and pull-request checks
+
+**Why is this file risky?** Every scored file carries up to three reasons,
+computed by ablation (`evomind/ml/explain.py`): each feature is reset to the
+repository's median value and the drop in predicted risk is measured. A reason
+such as `churn 6,405 · top 2% · +0.14` means "this file's churn is in the top
+2% of the repository, and if it were typical, its risk would fall by 0.14".
+It works for both models, needs no extra dependency, and the stated impact is
+exactly what the model does (`tests/test_explain.py` checks this directly).
+
+**Risk trend.** The repository is re-scored at six points in its history,
+from 30% of the way through to today (`evomind/ml/trend.py`), using the same
+trained model. The dashboard shows a sparkline per file, and the Trend column
+sorts by how much a file's risk has changed. Points before the training cutoff
+are partly in-sample for the model, so read the trend as direction, not as a
+forecast.
+
+**Pull-request check** (`evomind/pr_risk.py`, `evomind/integrations/github.py`).
+Scores the files a PR changes against an analysis of the repository, and
+renders a report showing risk, trend and reasons. It can run in two ways:
+
+- **From the dashboard:** after an analysis, enter a PR number in the
+  "Pull request risk check" panel. Posting the result as a PR comment is
+  opt-in.
+- **Automatically, through a GitHub webhook:** point a repository webhook at
+  `POST /webhook/github` (content type `application/json`, events: *Pull
+  requests*). GitHub expects a reply within 10 seconds and an analysis takes
+  minutes, so the endpoint replies `202` immediately and does the work in the
+  background. Analyses are cached per repository for 6 hours. Each PR gets
+  **one** comment, which later pushes update in place. `GET
+  /webhook/github/recent` lists the last 20 webhook outcomes.
+
+Settings (put them in `backend/.env`):
+
+```
+GITHUB_TOKEN=...            # needed to post comments; also raises GitHub's API rate limit
+GITHUB_WEBHOOK_SECRET=...   # needed for /webhook/github; the same value goes in GitHub's webhook form
+```
+
+Use a fine-grained token restricted to your own repository, with
+*Pull requests: Read and write*. Every webhook request is verified with
+HMAC-SHA256 against the secret, and unsigned or forged requests are rejected
+with `401`. Without a secret, the webhook endpoint is disabled (`503`).
+GitHub cannot reach `localhost`, so to try webhooks locally, expose the server
+with a tunnel such as `ngrok http 8000` and use the public URL it prints.
+
 ## Tests
 
 ```bash

@@ -19,7 +19,9 @@ from evomind.ingestion.repo_source import local_repo_path
 from evomind.ingestion.tree_snapshot import commit_at_or_before, commit_date_range, read_files_at_commit
 from evomind.labeling.llm_szz import AssessmentStats, refine_labels_with_llm_szz
 from evomind.labeling.szz import refine_labels_with_szz
+from evomind.ml.explain import explain_risk
 from evomind.ml.train import FEATURE_COLUMNS, TrainingReport, train_and_evaluate
+from evomind.ml.trend import compute_risk_trends, trend_delta, trend_times
 
 
 @dataclass
@@ -106,6 +108,13 @@ def run_pipeline(
             report_progress("Tracing bug-inducing commits (SZZ)…")
             train_df = refine_labels_with_szz(train_df, mined.records, path, cutoff, horizon_end)
 
+        report_progress("Reading earlier snapshots for risk trends…")
+        trend_history = []
+        for when in trend_times(start, end):
+            commit = commit_at_or_before(path, when)
+            if commit is not None:
+                trend_history.append((when, read_files_at_commit(path, commit)))
+
     if train_df.empty:
         raise ValueError(_no_analysable_files_message(repo, mined, cutoff))
 
@@ -125,7 +134,13 @@ def run_pipeline(
         mined, cutoff=end, snapshots=latest_snapshots, horizon_days=0
     )
     current_df["risk_score"] = report.model.predict_proba(current_df[FEATURE_COLUMNS])[:, 1]
-    scores = current_df[["file_path", "risk_score"]].sort_values(
+    current_df["reasons"] = explain_risk(report.model, current_df)
+
+    report_progress("Computing risk trends…")
+    trends = compute_risk_trends(report.model, mined, trend_history, end, current_df)
+    current_df["trend"] = current_df["file_path"].map(trends)
+    current_df["trend_delta"] = current_df["trend"].map(trend_delta)
+    scores = current_df[["file_path", "risk_score", "reasons", "trend", "trend_delta"]].sort_values(
         "risk_score", ascending=False
     )
 

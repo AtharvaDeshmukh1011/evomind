@@ -131,6 +131,8 @@ class AnalyzeResponse(BaseModel):
     cyclic_groups: list[list[str]]
     llm_szz_assessed: int | None = None
     llm_szz_fallback: int | None = None
+    history_start: str | None = None
+    history_end: str | None = None
 
 
 class FoldEval(BaseModel):
@@ -194,6 +196,8 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
     return AnalyzeResponse(
         repo=result.repo,
         cutoff=result.cutoff,
+        history_start=getattr(result, "history_start", None),
+        history_end=getattr(result, "history_end", None),
         horizon_days=result.horizon_days,
         training_files=len(result.feature_table),
         training_positive_rate=float(result.feature_table["is_bug_prone"].mean()),

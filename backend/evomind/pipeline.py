@@ -38,6 +38,8 @@ class PipelineResult:
     coupling: list
     cyclic_groups: list[list[str]]
     llm_szz_stats: AssessmentStats | None = None
+    history_start: str | None = None
+    history_end: str | None = None
 
 
 def _no_analysable_files_message(repo: str, mined, cutoff: datetime) -> str:
@@ -164,4 +166,6 @@ def run_pipeline(
         coupling=coupling,
         cyclic_groups=cyclic_groups,
         llm_szz_stats=llm_szz_stats,
+        history_start=start.isoformat(),
+        history_end=end.isoformat(),
     )

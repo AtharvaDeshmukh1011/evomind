@@ -259,6 +259,29 @@
   .suggestion p { margin-top: 6px; color: var(--muted); }
   .error-text { color: var(--negative); }
 
+  .intro { position: relative; height: 420vh; background: var(--ground); }
+  .stage { position: sticky; top: 0; height: 100svh; overflow: hidden; }
+  #city { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, var(--ground) 0%, transparent 55%); opacity: 0.85; }
+  .beat { position: absolute; z-index: 2; left: clamp(16px, 6vw, 96px); bottom: clamp(48px, 14vh, 140px); max-width: 620px; opacity: 0; pointer-events: none; }
+  .beat.on { pointer-events: auto; }
+  .big { font-size: clamp(32px, 5vw, 56px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 600; }
+  .kicker { color: var(--accent); font-weight: 500; margin-bottom: 12px; }
+  .lead { margin-top: 16px; color: var(--muted); font-size: 16px; line-height: 24px; }
+  .flags { margin-top: 20px; display: grid; gap: 6px; }
+  .flags li { display: flex; justify-content: space-between; gap: 24px; max-width: 420px; font-family: var(--mono); font-size: var(--fs-path); opacity: 0; transition: opacity 300ms ease; }
+  .flags li.on { opacity: 1; }
+  .flags .tick { color: var(--accent); }
+  .intro-form { left: 50%; top: 50%; bottom: auto; width: min(640px, calc(100vw - 32px)); transform: translate(-50%, -50%); text-align: center; }
+  .intro-row { display: flex; gap: 8px; margin-top: 24px; }
+  .intro-row .repo { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); font-family: var(--mono); font-size: 14px; }
+  .intro-row .btn { height: 44px; padding: 0 20px; }
+  .intro-form .lead a { color: var(--text); }
+  .skip { position: absolute; z-index: 3; top: 16px; right: 16px; }
+  html.lenis, html.lenis body { height: auto; }
+  .lenis.lenis-smooth { scroll-behavior: auto !important; }
+  .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+
   @media (max-width: 1100px) {
     .grid-2 { grid-template-columns: minmax(0, 1fr); }
     .kpis { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -307,8 +330,43 @@
 </style>
 </head>
 <body>
-<div class="app">
-  <aside class="sidebar" id="sidebar" aria-label="Views">
+<section class="intro" id="intro" aria-label="Introduction">
+  <div class="stage">
+    <canvas id="city" aria-hidden="true"></canvas>
+    <button class="btn ghost small skip" type="button" id="skipIntro">Skip intro</button>
+    <div class="beat" data-from="-1" data-to="0.2">
+      <p class="kicker">EvoMind</p>
+      <h2 class="big">Some of your files are about to break.</h2>
+      <p class="lead">Scroll to watch EvoMind scan a codebase.</p>
+    </div>
+    <div class="beat" data-from="0.22" data-to="0.6">
+      <h2 class="big">Scanning the commit history…</h2>
+      <p class="lead">Red towers are files likely to need a bug fix soon.</p>
+      <ul class="flags" id="flags">
+        <li><span>Commit history</span><span class="tick">✓</span></li>
+        <li><span>Bug-fix commits traced (SZZ)</span><span class="tick">✓</span></li>
+        <li><span>Code complexity</span><span class="tick">✓</span></li>
+        <li><span>Churn (how often files change)</span><span class="tick">✓</span></li>
+        <li><span>Import graph</span><span class="tick">✓</span></li>
+      </ul>
+    </div>
+    <div class="beat" data-from="0.62" data-to="0.84">
+      <h2 class="big">EvoMind finds them before your users do.</h2>
+    </div>
+    <form class="beat intro-form" id="introForm" data-from="0.86" data-to="2">
+      <h2 class="big">Scan your repository</h2>
+      <div class="intro-row">
+        <label class="sr-only" for="introRepo">Repository path or Git URL</label>
+        <input class="repo" id="introRepo" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo" />
+        <button class="btn primary" type="submit">Analyze</button>
+      </div>
+      <p class="lead">Paste a path or Git URL, or <a href="?sample">open the saved analysis of pallets/click</a>.</p>
+    </form>
+  </div>
+</section>
+
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Views" data-lenis-prevent>
     <div class="brand">
       <span style="display:inline-flex;align-items:center;gap:8px">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="4" cy="16" r="2.1" fill="currentColor"/><circle cx="16" cy="4" r="2.1" fill="currentColor"/><circle cx="16" cy="16" r="2.1" stroke="currentColor" stroke-width="1.6"/><path d="M4 13.6V8a4 4 0 0 1 4-4h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -565,7 +623,7 @@
 </div>
 
 <div class="dialog-backdrop" id="recModal" hidden>
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="recTitle">
+  <div class="dialog" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby="recTitle">
     <header>
       <div>
         <h2 id="recTitle">AI recommendation</h2>
@@ -1230,6 +1288,272 @@ if (new URLSearchParams(location.search).has('sample')) {
       document.getElementById('stamp').textContent = 'Saved analysis';
     })
     .catch(() => showError('The saved analysis could not be loaded.'));
+}
+</script>
+<script type="module">
+const intro = document.getElementById('intro');
+const app = document.getElementById('app');
+const canvas = document.getElementById('city');
+const beats = [...intro.querySelectorAll('.beat')];
+const flagsEl = document.getElementById('flags');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+let progress = 0;
+let shown = 0;
+let lenis = null;
+
+function readProgress() {
+  const span = Math.max(intro.offsetHeight - innerHeight, 1);
+  progress = clamp(-intro.getBoundingClientRect().top / span, 0, 1);
+}
+function updateOverlay() {
+  beats.forEach(el => {
+    const a = +el.dataset.from, b = +el.dataset.to, e = 0.04;
+    const o = shown < a || shown > b ? 0 : Math.min(1, (shown - a) / e, (b - shown) / e);
+    el.style.opacity = o;
+    el.classList.toggle('on', o > 0.5);
+  });
+  const s = clamp((shown - 0.22) / 0.36, 0, 1);
+  [...flagsEl.children].forEach((li, i, all) => li.classList.toggle('on', s > (i + 1) / (all.length + 1)));
+}
+
+if (location.search.includes('sample') || location.hash) app.scrollIntoView();
+document.getElementById('skipIntro').addEventListener('click', () => lenis ? lenis.scrollTo(app) : app.scrollIntoView());
+document.getElementById('introForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const value = document.getElementById('introRepo').value.trim();
+  if (!value) return;
+  document.getElementById('repo').value = value;
+  if (lenis) lenis.scrollTo(app, { immediate: true }); else app.scrollIntoView();
+  document.getElementById('analyzeForm').requestSubmit();
+});
+
+addEventListener('scroll', readProgress, { passive: true });
+readProgress();
+shown = progress;
+updateOverlay();
+function ease() {
+  requestAnimationFrame(ease);
+  shown += (progress - shown) * (reduce ? 1 : 0.08);
+  if (Math.abs(progress - shown) < 0.0003) shown = progress;
+  updateOverlay();
+}
+requestAnimationFrame(ease);
+
+const [LenisMod, THREE] = reduce ? [null, null] : (await Promise.allSettled([
+  import('https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.mjs'),
+  import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js'),
+])).map(r => r.status === 'fulfilled' ? r.value : null);
+if (LenisMod) {
+  lenis = new LenisMod.default({ lerp: 0.09, smoothWheel: true, wheelMultiplier: 0.9 });
+  const lenisRaf = (t) => { lenis.raf(t); requestAnimationFrame(lenisRaf); };
+  requestAnimationFrame(lenisRaf);
+}
+if (!THREE) {
+  canvas.hidden = true;
+} else {
+  const small = innerWidth < 700;
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x010102, 45, 120);
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
+
+  const N = small ? 12 : 18, gap = 2.2, half = (N - 1) * gap / 2;
+  let seed = 1 + Math.floor(Math.random() * 2147483645);
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const geo = new THREE.BoxGeometry(1.5, 1, 1.5);
+  geo.translate(0, 0.5, 0);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.25 });
+  const city = new THREE.InstancedMesh(geo, mat, N * N);
+  const towers = [];
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      const x = i * gap - half, z = j * gap - half;
+      const centre = 1 - Math.hypot(x, z) / (half * 1.6);
+      const h = 0.4 + Math.pow(rand(), 2.2) * 11 * clamp(centre, 0.15, 1);
+      m.compose(p.set(x, 0, z), q, sc.set(1, h, 1));
+      city.setMatrixAt(towers.length, m);
+      towers.push({ x, z, h, risky: h > 3.5 && rand() < 0.22 });
+    }
+  }
+  const base = new THREE.Color(0x3a3e4a), scanned = new THREE.Color(0x30356a), red = new THREE.Color(0xeb5757), tmp = new THREE.Color();
+  towers.forEach((_, k) => city.setColorAt(k, base));
+  scene.add(city);
+
+  scene.add(new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+  const sun = new THREE.DirectionalLight(0xc9cdff, 1.4);
+  sun.position.set(25, 45, 15);
+  scene.add(sun);
+  const glow = new THREE.PointLight(0xeb5757, 0, 40);
+  scene.add(glow);
+
+  const beam = new THREE.Group();
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(N * gap + 6, 16),
+    new THREE.MeshBasicMaterial({ color: 0xeb5757, transparent: true, opacity: 0.14, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  sheet.rotation.y = Math.PI / 2;
+  sheet.position.y = 8;
+  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, N * gap + 6), new THREE.MeshBasicMaterial({ color: 0xff6b6b }));
+  beam.add(sheet, edge);
+  scene.add(beam);
+
+  const mastH = 15;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.32, mastH, 12), new THREE.MeshStandardMaterial({ color: 0x2a2d36, roughness: 0.6 }));
+  mast.position.y = mastH / 2;
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 16), new THREE.MeshBasicMaterial({ color: 0xff4040 }));
+  lamp.position.y = mastH;
+  scene.add(mast, lamp);
+  const siren = new THREE.Group();
+  siren.position.y = mastH;
+  const tilt = 0.32;
+  const coneGeo = new THREE.ConeGeometry(7, 46, 40, 1, true);
+  coneGeo.translate(0, -23, 0);
+  coneGeo.rotateZ(Math.PI / 2 - tilt);
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0xff3030, transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+  const spots = [];
+  [0, Math.PI].forEach(a => {
+    const arm = new THREE.Group();
+    arm.rotation.y = a;
+    arm.add(new THREE.Mesh(coneGeo, coneMat));
+    const spot = new THREE.SpotLight(0xff3030, 0, 0, tilt, 0.6, 0);
+    spot.target.position.set(Math.cos(tilt) * 30, -Math.sin(tilt) * 30, 0);
+    arm.add(spot, spot.target);
+    spots.push(spot);
+    siren.add(arm);
+  });
+  scene.add(siren);
+
+  const signCanvas = document.createElement('canvas');
+  signCanvas.width = signCanvas.height = 128;
+  const g = signCanvas.getContext('2d');
+  g.beginPath(); g.moveTo(64, 12); g.lineTo(120, 112); g.lineTo(8, 112); g.closePath();
+  g.fillStyle = '#f2c94c'; g.fill();
+  g.lineJoin = 'round'; g.lineWidth = 8; g.strokeStyle = '#1a1a1a'; g.stroke();
+  g.fillStyle = '#1a1a1a'; g.font = 'bold 64px Inter, Arial, sans-serif'; g.textAlign = 'center'; g.fillText('!', 64, 100);
+  const signTex = new THREE.CanvasTexture(signCanvas);
+  signTex.colorSpace = THREE.SRGBColorSpace;
+  const signMat = new THREE.SpriteMaterial({ map: signTex, transparent: true, fog: false });
+  const signs = towers.map((tw, k) => tw.risky ? { tw, k, sprite: new THREE.Sprite(signMat), shownAt: -1 } : null).filter(Boolean);
+  signs.forEach(sg => { sg.sprite.visible = false; scene.add(sg.sprite); });
+
+  const risky = towers.filter(t => t.risky);
+  const towerAt = (x, z) => {
+    const i = Math.round((x + half) / gap), j = Math.round((z + half) / gap);
+    return i < 0 || j < 0 || i >= N || j >= N ? null : towers[i * N + j];
+  };
+  const hits = (x, y, z, skip, pad) => {
+    const tw = towerAt(x, z);
+    return !!tw && tw !== skip && Math.abs(x - tw.x) < 0.75 + pad && Math.abs(z - tw.z) < 0.75 + pad && y < tw.h + pad;
+  };
+  const sightClear = (cam, tw) => {
+    for (const aimY of [tw.h * 0.6, tw.h + 0.5]) {
+      for (let n = 0; n < 32; n++) {
+        const f = n / 32;
+        if (hits(cam.x + (tw.x - cam.x) * f, cam.y + (aimY - cam.y) * f, cam.z + (tw.z - cam.z) * f, tw, 0.3)) return false;
+      }
+    }
+    return true;
+  };
+  const pathClear = (from, cam, tw) => {
+    for (let n = 0; n <= 24; n++) {
+      const f = 0.4 + 0.6 * n / 24;
+      if (hits(from.x + (cam.x - from.x) * f, from.y + (cam.y - from.y) * f, from.z + (cam.z - from.z) * f, tw, 0.8)) return false;
+    }
+    return true;
+  };
+  const pickTarget = (t) => {
+    const a = 0.75 + 0.73 * 1.1 + t * 0.03, R = small ? 44 : 50;
+    const from = { x: Math.cos(a) * R, y: small ? 34 : 30, z: Math.sin(a) * R };
+    const choices = [];
+    const pool = risky.filter(tw => tw.h > 4);
+    (pool.length ? pool : risky).forEach(tw => {
+      const base = Math.atan2(from.z - tw.z, from.x - tw.x);
+      for (const k of [0, 1, -1, 2, -2, 3, -3]) {
+        const ang = base + k * 0.25;
+        const cam = { x: tw.x + Math.cos(ang) * 10, y: tw.h + 3.5, z: tw.z + Math.sin(ang) * 10 };
+        if (sightClear(cam, tw) && pathClear(from, cam, tw)) { choices.push({ tw, ang, cost: Math.abs(k) }); break; }
+      }
+    });
+    if (!choices.length) {
+      const tw = risky.sort((p, q) => q.h - p.h)[0] || towers[0];
+      return { tw, ang: Math.atan2(from.z - tw.z, from.x - tw.x), lift: 6 };
+    }
+    const easy = choices.filter(c => c.cost <= 1);
+    const list = easy.length ? easy : choices;
+    return { ...list[Math.floor(Math.random() * list.length)], lift: 0 };
+  };
+  let pick = pickTarget(0), dived = false;
+  const centre = new THREE.Vector3(0, 2, 0), look = new THREE.Vector3(), orbit = new THREE.Vector3(), close = new THREE.Vector3(), aim = new THREE.Vector3();
+
+  function resize() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  addEventListener('resize', resize);
+  resize();
+
+  let visible = true;
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(intro);
+
+  let alarm = 0;
+  function frame(ms) {
+    requestAnimationFrame(frame);
+    if (!visible) return;
+    const t = ms / 1000;
+    const s = clamp((shown - 0.2) / 0.42, 0, 1);
+    const scanX = -half - 3 + s * (2 * half + 6);
+    beam.position.x = scanX;
+    beam.visible = s > 0 && s < 1;
+    let reds = 0;
+    towers.forEach((tw, k) => {
+      if (tw.x > scanX) tmp.copy(base);
+      else if (tw.risky) { reds++; tmp.copy(red).multiplyScalar(0.7 + 0.3 * Math.sin(t * 4 + k)); }
+      else tmp.copy(scanned);
+      city.setColorAt(k, tmp);
+    });
+    city.instanceColor.needsUpdate = true;
+
+    alarm += ((reds ? 1 : 0) * (1 - smooth(0.9, 0.97, shown)) - alarm) * 0.08;
+    siren.rotation.y = t * 1.4;
+    coneMat.opacity = 0.11 * alarm;
+    spots.forEach(sp => { sp.intensity = 6 * alarm; });
+    lamp.scale.setScalar(1 + 0.25 * alarm * Math.abs(Math.sin(t * 6)));
+    signs.forEach(sg => {
+      const on = shown > 0.2 && sg.tw.x <= scanX;
+      if (on && sg.shownAt < 0) sg.shownAt = t;
+      if (!on) sg.shownAt = -1;
+      sg.sprite.visible = on;
+      if (!on) return;
+      const x = Math.min(1, (t - sg.shownAt) / 0.45) - 1;
+      const size = 1.5 * (1 + 2.70158 * x * x * x + 1.70158 * x * x);
+      sg.sprite.scale.set(size, size, 1);
+      sg.sprite.position.set(sg.tw.x, sg.tw.h + 1.6 + Math.sin(t * 2.2 + sg.k) * 0.3, sg.tw.z);
+      if (sg.tw !== pick.tw && camera.position.distanceTo(sg.sprite.position) < 7) sg.sprite.visible = false;
+    });
+
+    const angle = 0.75 + shown * 1.1 + t * 0.03;
+    const R = small ? 44 : 50;
+    orbit.set(Math.cos(angle) * R, small ? 34 : 30, Math.sin(angle) * R);
+    const d = smooth(0.6, 0.86, shown);
+    if (d > 0.05) dived = true;
+    else if (dived && shown < 0.5) { pick = pickTarget(t); dived = false; }
+    const target = pick.tw;
+    close.set(target.x + Math.cos(pick.ang) * 10, target.h + 3.5 + pick.lift, target.z + Math.sin(pick.ang) * 10);
+    camera.position.lerpVectors(orbit, close, d);
+    aim.set(target.x, target.h * 0.6, target.z);
+    look.lerpVectors(centre, aim, d);
+    camera.lookAt(look);
+    glow.position.set(target.x, target.h + 2, target.z);
+    glow.intensity = reds ? 30 * d + 4 : 0;
+    canvas.style.opacity = 1 - 0.8 * smooth(0.84, 0.95, shown);
+    renderer.render(scene, camera);
+  }
+  requestAnimationFrame(frame);
 }
 </script>
 </body>

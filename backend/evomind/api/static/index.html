@@ -190,8 +190,10 @@
   td.rank { width: 40px; color: var(--muted); }
   td.empty-cell { padding: 32px 0; text-align: center; color: var(--muted); }
 
-  .reasons { display: flex; flex-wrap: wrap; gap: 2px 16px; margin-top: 4px; font-size: var(--fs-small); line-height: 18px; color: var(--muted); }
-  .reasons b { font-weight: 500; color: var(--text); }
+  .reasons { display: grid; grid-template-columns: 148px 64px 64px 72px; column-gap: 12px; row-gap: 2px; margin-top: 8px; font-size: var(--fs-small); line-height: 18px; color: var(--muted); }
+  .reasons li { display: contents; }
+  .reasons .v { color: var(--text); font-weight: 500; text-align: right; }
+  .reasons .imp { text-align: right; }
 
   .pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: var(--fs-small); font-weight: 500; white-space: nowrap; background: var(--pill-neutral-bg); color: var(--pill-neutral-ink); }
   .pill.pos { background: var(--pill-positive-bg); color: var(--pill-positive-ink); }
@@ -230,12 +232,24 @@
   .spinner { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--active); border-top-color: var(--accent); animation: spin 0.8s linear infinite; vertical-align: -2px; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  .start { max-width: 640px; }
-  .start p { color: var(--muted); }
-  .start h2 { font-size: var(--fs-section); line-height: 24px; font-weight: 600; margin: 32px 0 8px; }
-  .repo-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 8px 0; border-top: 1px solid var(--rule); }
-  .repo-list li:first-child { border-top: 0; }
-  .repo-list .what { color: var(--muted); font-size: var(--fs-small); }
+  .start { display: grid; gap: 40px; }
+  .start h2 { font-size: var(--fs-section); line-height: 24px; font-weight: 600; letter-spacing: -0.2px; margin-bottom: 12px; }
+  .start-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 32px; align-items: start; }
+  .start-top > p { color: var(--muted); font-size: 15px; line-height: 24px; max-width: 64ch; }
+  .card { background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px 24px; }
+  .sample-card h3 { font-size: var(--fs-body); line-height: 20px; font-weight: 600; }
+  .sample-card p { margin: 6px 0 16px; color: var(--muted); }
+  .repo-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .repo-card { display: flex; flex-direction: column; gap: 6px; text-align: left; cursor: pointer; transition: border-color var(--t-hover) ease, background-color var(--t-hover) ease; }
+  .repo-card:hover { border-color: var(--control); background: var(--active); }
+  .repo-card .name { font-family: var(--mono); font-size: 14px; font-weight: 500; }
+  .repo-card .what { color: var(--muted); }
+  .repo-card .meta-row { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 12px; color: var(--muted); font-size: var(--fs-small); }
+  .repo-card .use { color: var(--text); font-weight: 500; }
+  .how { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+  .how .n { color: var(--accent); font-family: var(--mono); font-size: var(--fs-small); }
+  .how h3 { margin-top: 8px; font-size: var(--fs-body); line-height: 20px; font-weight: 600; }
+  .how p { margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 20px; }
 
   .inline-form { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
   .inline-form .input { width: 160px; }
@@ -259,30 +273,45 @@
   .suggestion p { margin-top: 6px; color: var(--muted); }
   .error-text { color: var(--negative); }
 
-  .intro { position: relative; height: 420vh; background: var(--ground); }
+  .intro { position: relative; height: 100svh; background: var(--ground); }
+  .intro.done { height: 320vh; }
   .stage { position: sticky; top: 0; height: 100svh; overflow: hidden; }
   #city { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, var(--ground) 0%, transparent 55%); opacity: 0.85; }
-  .beat { position: absolute; z-index: 2; left: clamp(16px, 6vw, 96px); bottom: clamp(48px, 14vh, 140px); max-width: 620px; opacity: 0; pointer-events: none; }
-  .beat.on { pointer-events: auto; }
+  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 55% 45% at 50% 50%, rgba(1, 1, 2, 0.85), transparent 75%); transition: opacity 600ms ease; }
+  .intro.scanning .stage::after, .intro.revealing .stage::after, .intro.done .stage::after { opacity: 0.2; }
+  .hero, .status-card, .scroll-hint, .focus-card { position: absolute; z-index: 2; }
+  .hero { left: 50%; top: 50%; width: min(720px, calc(100vw - 32px)); transform: translate(-50%, -50%); text-align: center; transition: opacity 500ms ease, transform 500ms ease; }
+  .intro.scanning .hero, .intro.revealing .hero, .intro.done .hero { opacity: 0; transform: translate(-50%, -60%); pointer-events: none; }
   .big { font-size: clamp(32px, 5vw, 56px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 600; }
   .kicker { color: var(--accent); font-weight: 500; margin-bottom: 12px; }
   .lead { margin-top: 16px; color: var(--muted); font-size: 16px; line-height: 24px; }
-  .flags { margin-top: 20px; display: grid; gap: 6px; }
-  .flags li { display: flex; justify-content: space-between; gap: 24px; max-width: 420px; font-family: var(--mono); font-size: var(--fs-path); opacity: 0; transition: opacity 300ms ease; }
-  .flags li.on { opacity: 1; }
-  .flags .tick { color: var(--accent); }
-  .intro-form { left: 50%; top: 50%; bottom: auto; width: min(640px, calc(100vw - 32px)); transform: translate(-50%, -50%); text-align: center; }
-  .intro-row { display: flex; gap: 8px; margin-top: 24px; }
+  .lead a { color: var(--text); }
+  .intro-row { display: flex; gap: 8px; margin-top: 28px; }
   .intro-row .repo { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); font-family: var(--mono); font-size: 14px; }
-  .intro-row .btn { height: 44px; padding: 0 20px; }
-  .intro-form .lead a { color: var(--text); }
+  .intro-row .btn { height: 44px; padding: 0 22px; }
+  .intro-error { margin-top: 16px; color: var(--negative); }
+  .status-card { left: 50%; bottom: 40px; width: min(520px, calc(100vw - 32px)); transform: translateX(-50%); padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+  .status-top { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: var(--fs-small); }
+  .status-top .mono { color: var(--text); font-size: var(--fs-path); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status-bar { height: 4px; margin: 12px 0 10px; border-radius: 2px; background: var(--active); overflow: hidden; }
+  .status-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .status-card p { color: var(--muted); }
+  .scroll-hint { left: 50%; top: 50%; width: min(720px, calc(100vw - 32px)); transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+  .scroll-hint .big { font-size: clamp(28px, 4vw, 44px); }
+  .focus-card { left: clamp(16px, 6vw, 96px); bottom: clamp(48px, 12vh, 120px); max-width: 560px; opacity: 0; pointer-events: none; }
+  .focus-card .path { margin-top: 8px; font-family: var(--mono); font-size: clamp(18px, 2.2vw, 26px); line-height: 1.3; overflow-wrap: anywhere; }
   .skip { position: absolute; z-index: 3; top: 16px; right: 16px; }
   html.lenis, html.lenis body { height: auto; }
   .lenis.lenis-smooth { scroll-behavior: auto !important; }
   .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
-
+  .locked #app { display: none; }
+  .to-top { position: fixed; right: 24px; bottom: 24px; z-index: 45; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--control); background: var(--raised); color: var(--text); cursor: pointer; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); opacity: 0; transform: translateY(12px); pointer-events: none; transition: opacity 200ms ease, transform 200ms ease, background-color 150ms ease; }
+  .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
+  .to-top:hover { background: var(--active); }
+  .to-top svg { width: 18px; height: 18px; }
   @media (max-width: 1100px) {
+    .start-top { grid-template-columns: minmax(0, 1fr); }
+    .how { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grid-2 { grid-template-columns: minmax(0, 1fr); }
     .kpis { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .kpi + .kpi { border-left: 0; }
@@ -290,6 +319,7 @@
     .kpi:nth-child(2n) { border-left: 1px solid var(--border); }
   }
   @media (max-width: 860px) {
+    .repo-cards { grid-template-columns: minmax(0, 1fr); }
     :root { --pad: 16px; }
     .app { grid-template-columns: minmax(0, 1fr); }
     .sidebar { position: fixed; inset: 0; z-index: 40; width: 100%; height: 100%; padding: 0 16px 16px; background: var(--surface); transform: translateX(-100%); visibility: hidden; transition: transform 200ms ease, visibility 0s 200ms; }
@@ -311,6 +341,8 @@
     .filters .input { flex: 1; width: auto; min-width: 0; }
   }
   @media (max-width: 640px) {
+    .reasons { grid-template-columns: minmax(0, 1fr) 48px 56px 64px; column-gap: 8px; }
+    .how { grid-template-columns: minmax(0, 1fr); }
     #riskTable thead { display: none; }
     #riskTable tr { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; grid-template-areas: "rank file file" ". band score" ". trend ask"; gap: 8px 8px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
     #riskTable tbody tr:last-child { border-bottom: 0; }
@@ -329,42 +361,39 @@
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 2s !important; } }
 </style>
 </head>
-<body>
-<section class="intro" id="intro" aria-label="Introduction">
+<body class="locked">
+<section class="intro" id="intro" aria-label="Scan a repository">
   <div class="stage">
     <canvas id="city" aria-hidden="true"></canvas>
-    <button class="btn ghost small skip" type="button" id="skipIntro">Skip intro</button>
-    <div class="beat" data-from="-1" data-to="0.2">
+    <button class="btn ghost small skip" type="button" id="skipIntro" hidden>Skip to results</button>
+    <div class="hero" id="hero">
       <p class="kicker">EvoMind</p>
-      <h2 class="big">Some of your files are about to break.</h2>
-      <p class="lead">Scroll to watch EvoMind scan a codebase.</p>
-    </div>
-    <div class="beat" data-from="0.22" data-to="0.6">
-      <h2 class="big">Scanning the commit history…</h2>
-      <p class="lead">Red towers are files likely to need a bug fix soon.</p>
-      <ul class="flags" id="flags">
-        <li><span>Commit history</span><span class="tick">✓</span></li>
-        <li><span>Bug-fix commits traced (SZZ)</span><span class="tick">✓</span></li>
-        <li><span>Code complexity</span><span class="tick">✓</span></li>
-        <li><span>Churn (how often files change)</span><span class="tick">✓</span></li>
-        <li><span>Import graph</span><span class="tick">✓</span></li>
-      </ul>
-    </div>
-    <div class="beat" data-from="0.62" data-to="0.84">
-      <h2 class="big">EvoMind finds them before your users do.</h2>
-    </div>
-    <form class="beat intro-form" id="introForm" data-from="0.86" data-to="2">
-      <h2 class="big">Scan your repository</h2>
-      <div class="intro-row">
+      <h2 class="big">Find the files that will break next.</h2>
+      <form class="intro-row" id="introForm">
         <label class="sr-only" for="introRepo">Repository path or Git URL</label>
         <input class="repo" id="introRepo" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo" />
-        <button class="btn primary" type="submit">Analyze</button>
-      </div>
+        <button class="btn primary" type="submit">Scan</button>
+      </form>
+      <p class="intro-error" id="introError" role="alert" hidden></p>
       <p class="lead">Paste a path or Git URL, or <a href="?sample">open the saved analysis of pallets/click</a>.</p>
-    </form>
+    </div>
+    <div class="status-card" id="scanStatus" aria-live="polite" hidden>
+      <div class="status-top"><span class="mono" id="scanRepo"></span><span class="num" id="scanTime">0s</span></div>
+      <div class="status-bar"><i id="scanBar"></i></div>
+      <p id="scanStep">Starting…</p>
+    </div>
+    <div class="scroll-hint" id="scrollHint" hidden>
+      <p class="big" id="foundText"></p>
+      <p class="lead">Scroll to see the riskiest file ↓</p>
+    </div>
+    <div class="focus-card" id="focusCard">
+      <p class="kicker">Riskiest file</p>
+      <p class="path" id="focusPath"></p>
+      <p class="lead" id="focusMeta"></p>
+    </div>
   </div>
 </section>
-
+<button class="to-top" id="toTop" type="button" aria-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 <div class="app" id="app">
   <aside class="sidebar" id="sidebar" aria-label="Views" data-lenis-prevent>
     <div class="brand">
@@ -466,14 +495,43 @@
       </section>
 
       <section class="start" id="emptyState">
-        <p>EvoMind reads a repository's commit history, learns which files went on to need bug fixes, and ranks today's files by the chance that they will need one next. Paste a path or Git URL above and press Analyze.</p>
-        <h2>Try a public repository</h2>
-        <ul class="repo-list">
-          <li><div><div class="mono">https://github.com/pallets/click</div><div class="what">Python CLI toolkit · about three minutes</div></div><button class="btn small" type="button" data-repo="https://github.com/pallets/click">Use</button></li>
-          <li><div><div class="mono">https://github.com/pallets/flask</div><div class="what">Python web framework · several minutes</div></div><button class="btn small" type="button" data-repo="https://github.com/pallets/flask">Use</button></li>
-          <li><div><div class="mono">https://github.com/psf/requests</div><div class="what">Python HTTP library · several minutes</div></div><button class="btn small" type="button" data-repo="https://github.com/psf/requests">Use</button></li>
-        </ul>
-        <p id="sampleLink" hidden style="margin-top:24px"><a class="btn" href="?sample">Open the saved analysis of pallets/click</a></p>
+        <div class="start-top">
+          <p>EvoMind reads a repository's commit history, learns which files went on to need bug fixes, and ranks today's files by the chance that they will need one next. Paste a path or Git URL above and press Analyze.</p>
+          <div class="card sample-card" id="sampleLink" hidden>
+            <h3>See a finished analysis first</h3>
+            <p>A saved run on pallets/click, with the risk ranking, trends, coupling and model scores.</p>
+            <a class="btn" href="?sample">Open saved analysis</a>
+          </div>
+        </div>
+        <div>
+          <h2>Try a public repository</h2>
+          <div class="repo-cards">
+          <button class="card repo-card" type="button" data-repo="https://github.com/pallets/click">
+            <span class="name">pallets/click</span>
+            <span class="what">Python CLI toolkit</span>
+            <span class="meta-row"><span>about three minutes</span><span class="use">Use →</span></span>
+          </button>
+          <button class="card repo-card" type="button" data-repo="https://github.com/pallets/flask">
+            <span class="name">pallets/flask</span>
+            <span class="what">Python web framework</span>
+            <span class="meta-row"><span>several minutes</span><span class="use">Use →</span></span>
+          </button>
+          <button class="card repo-card" type="button" data-repo="https://github.com/psf/requests">
+            <span class="name">psf/requests</span>
+            <span class="what">Python HTTP library</span>
+            <span class="meta-row"><span>several minutes</span><span class="use">Use →</span></span>
+          </button>
+          </div>
+        </div>
+        <div>
+          <h2>How it works</h2>
+          <div class="how">
+          <div class="card"><span class="n">01</span><h3>Mine the history</h3><p>Clones the repository and reads every commit: which files changed, how often and by how much.</p></div>
+          <div class="card"><span class="n">02</span><h3>Trace bug fixes</h3><p>Finds fix commits, then uses SZZ (git blame) to mark the files that held the bug before the cutoff.</p></div>
+          <div class="card"><span class="n">03</span><h3>Train and compare</h3><p>Builds code and history metrics per file and trains Random Forest against Logistic Regression; the higher ROC-AUC wins.</p></div>
+          <div class="card"><span class="n">04</span><h3>Rank and explain</h3><p>Scores today’s files, shows what drives each score and how the risk has moved over time.</p></div>
+          </div>
+        </div>
       </section>
 
       <div id="results" hidden>
@@ -815,7 +873,9 @@ form.addEventListener('submit', (e) => {
   const es = new EventSource(`/analyze/stream?${params.toString()}`);
 
   es.addEventListener('progress', (ev) => {
-    addProgressStep(JSON.parse(ev.data).message);
+    const message = JSON.parse(ev.data).message;
+    addProgressStep(message);
+    document.dispatchEvent(new CustomEvent('evo:progress', { detail: message }));
   });
 
   es.addEventListener('result', (ev) => {
@@ -823,6 +883,7 @@ form.addEventListener('submit', (e) => {
     finishProgress();
     currentRepo = repo;
     render(data);
+    document.dispatchEvent(new CustomEvent('evo:result', { detail: data }));
     document.getElementById('stamp').textContent = `Analysed ${new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
     btn.disabled = false;
     btnLabel.textContent = 'Analyze';
@@ -836,6 +897,7 @@ form.addEventListener('submit', (e) => {
       try { message = JSON.parse(ev.data).detail || message; } catch (_) {}
     }
     showError(message);
+    document.dispatchEvent(new CustomEvent('evo:error', { detail: message }));
     results.hidden = !lastData;
     emptyState.hidden = !!lastData;
     if (lastData) renderTitle(lastData);
@@ -1039,8 +1101,8 @@ function renderReasons(reasons) {
   if (!reasons || !reasons.length) return '';
   return `<ul class="reasons">${reasons.map(r => {
     const top = Math.max(1, Math.round((1 - r.percentile) * 100));
-    return `<li title="If this were typical for the repository, risk would fall by ${r.impact.toFixed(3)}">` +
-      `${escapeHtml(r.label)} <b class="num">${formatValue(r.value)}</b> · top ${top}% · +${r.impact.toFixed(2)}</li>`;
+    return `<li><span>${escapeHtml(r.label)}</span><span class="v num">${formatValue(r.value)}</span>` +
+      `<span>top ${top}%</span><span class="imp num" title="If this were typical for the repository, risk would fall by ${r.impact.toFixed(3)}">+${r.impact.toFixed(2)} risk</span></li>`;
   }).join('')}</ul>`;
 }
 
@@ -1294,52 +1356,140 @@ if (new URLSearchParams(location.search).has('sample')) {
 const intro = document.getElementById('intro');
 const app = document.getElementById('app');
 const canvas = document.getElementById('city');
-const beats = [...intro.querySelectorAll('.beat')];
-const flagsEl = document.getElementById('flags');
+const scanStatus = document.getElementById('scanStatus');
+const scanStep = document.getElementById('scanStep');
+const scanBar = document.getElementById('scanBar');
+const scanTime = document.getElementById('scanTime');
+const scrollHint = document.getElementById('scrollHint');
+const focusCard = document.getElementById('focusCard');
+const skip = document.getElementById('skipIntro');
+const introError = document.getElementById('introError');
+const toTop = document.getElementById('toTop');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-let progress = 0;
-let shown = 0;
+const STEPS = 12;
+
+let state = 'idle';
 let lenis = null;
+let progress = 0, shown = 0;
+let stepIndex = 0, stepAt = 0, scanStart = 0, timer = null;
+let scanShown = 0, revealStart = 0;
+let assignFiles = () => {};
 
 function readProgress() {
+  if (state !== 'done') { progress = 0; return; }
   const span = Math.max(intro.offsetHeight - innerHeight, 1);
   progress = clamp(-intro.getBoundingClientRect().top / span, 0, 1);
 }
-function updateOverlay() {
-  beats.forEach(el => {
-    const a = +el.dataset.from, b = +el.dataset.to, e = 0.04;
-    const o = shown < a || shown > b ? 0 : Math.min(1, (shown - a) / e, (b - shown) / e);
-    el.style.opacity = o;
-    el.classList.toggle('on', o > 0.5);
-  });
-  const s = clamp((shown - 0.22) / 0.36, 0, 1);
-  [...flagsEl.children].forEach((li, i, all) => li.classList.toggle('on', s > (i + 1) / (all.length + 1)));
+function bandName(score) {
+  return score >= 0.66 ? 'Critical' : score >= 0.5 ? 'Serious' : score >= 0.33 ? 'Watch' : 'Low';
 }
 
-if (location.search.includes('sample') || location.hash) app.scrollIntoView();
-document.getElementById('skipIntro').addEventListener('click', () => lenis ? lenis.scrollTo(app) : app.scrollIntoView());
+if (location.search.includes('sample')) {
+  state = 'skipped';
+  document.body.classList.remove('locked');
+  app.scrollIntoView();
+}
+
 document.getElementById('introForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  const value = document.getElementById('introRepo').value.trim();
-  if (!value) return;
+  const input = document.getElementById('introRepo');
+  const value = input.value.trim();
+  if (!value) { input.focus(); return; }
   document.getElementById('repo').value = value;
-  if (lenis) lenis.scrollTo(app, { immediate: true }); else app.scrollIntoView();
+  state = 'scanning';
+  stepIndex = 0;
+  stepAt = scanStart = performance.now();
+  scanShown = 0;
+  introError.hidden = true;
+  intro.classList.add('scanning');
+  scanStatus.hidden = false;
+  document.getElementById('scanRepo').textContent = value.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '');
+  scanStep.textContent = 'Starting…';
+  scanTime.textContent = '0s';
+  clearInterval(timer);
+  timer = setInterval(() => {
+    const s = Math.floor((performance.now() - scanStart) / 1000);
+    scanTime.textContent = s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  }, 1000);
   document.getElementById('analyzeForm').requestSubmit();
 });
 
-addEventListener('scroll', readProgress, { passive: true });
-readProgress();
-shown = progress;
-updateOverlay();
-function ease() {
-  requestAnimationFrame(ease);
+document.addEventListener('evo:progress', (e) => {
+  if (state !== 'scanning') return;
+  stepIndex = Math.min(stepIndex + 1, STEPS - 1);
+  stepAt = performance.now();
+  scanStep.textContent = e.detail;
+});
+
+document.addEventListener('evo:error', (e) => {
+  if (state !== 'scanning') return;
+  clearInterval(timer);
+  state = 'idle';
+  scanShown = 0;
+  intro.classList.remove('scanning');
+  scanStatus.hidden = true;
+  introError.textContent = e.detail;
+  introError.hidden = false;
+});
+
+document.addEventListener('evo:result', (e) => {
+  if (state !== 'scanning') return;
+  clearInterval(timer);
+  const files = e.detail.top_risk_files || [];
+  scanStep.textContent = 'Done. Marking the risky files…';
+  state = 'revealing';
+  revealStart = performance.now();
+  assignFiles(files);
+  const n = files.filter(f => f.risk_score >= 0.5).length;
+  document.getElementById('foundText').textContent = n ? `Found ${n} high-risk file${n === 1 ? '' : 's'}.` : 'No high-risk files found.';
+  const top = files[0];
+  if (top) {
+    document.getElementById('focusPath').textContent = String(top.file_path).replace(/\\/g, '/');
+    const why = top.reasons && top.reasons[0] ? ` · ${top.reasons[0].label} in the top ${Math.max(1, Math.round((1 - top.reasons[0].percentile) * 100))}%` : '';
+    document.getElementById('focusMeta').textContent = `Risk ${top.risk_score.toFixed(2)} · ${bandName(top.risk_score)}${why}`;
+  }
+  setTimeout(() => {
+    state = 'done';
+    scanStatus.hidden = true;
+    intro.classList.remove('scanning');
+    intro.classList.add('done');
+    document.body.classList.remove('locked');
+    scrollHint.hidden = false;
+    skip.hidden = false;
+    if (lenis) lenis.resize();
+    readProgress();
+  }, reduce ? 0 : 2400);
+});
+
+skip.addEventListener('click', () => lenis ? lenis.scrollTo(app) : app.scrollIntoView());
+
+addEventListener('scroll', () => {
+  readProgress();
+  toTop.classList.toggle('show', !document.body.classList.contains('locked') && scrollY > app.offsetTop + 600);
+}, { passive: true });
+toTop.addEventListener('click', () => {
+  if (lenis) lenis.scrollTo(app, { duration: 0.9, easing: (x) => 1 - Math.pow(1 - x, 4) });
+  else app.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+});
+
+function tick(now) {
+  requestAnimationFrame(tick);
+  let target = 0;
+  if (state === 'scanning') {
+    const base = stepIndex / STEPS, next = (stepIndex + 1) / STEPS;
+    target = base + (next - base) * 0.85 * (1 - Math.exp(-(now - stepAt) / 15000));
+  } else if (state === 'revealing' || state === 'done' || state === 'skipped') target = 1;
+  scanShown += (target - scanShown) * (reduce ? 1 : 0.05);
+  scanBar.style.width = `${(scanShown * 100).toFixed(1)}%`;
   shown += (progress - shown) * (reduce ? 1 : 0.08);
-  if (Math.abs(progress - shown) < 0.0003) shown = progress;
-  updateOverlay();
+  if (state === 'done') {
+    scrollHint.style.opacity = 1 - smooth(0.02, 0.1, shown);
+    focusCard.style.opacity = smooth(0.35, 0.5, shown) * (1 - smooth(0.82, 0.92, shown));
+  }
 }
-requestAnimationFrame(ease);
+requestAnimationFrame(tick);
 
 const [LenisMod, THREE] = reduce ? [null, null] : (await Promise.allSettled([
   import('https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.mjs'),
@@ -1350,6 +1500,7 @@ if (LenisMod) {
   const lenisRaf = (t) => { lenis.raf(t); requestAnimationFrame(lenisRaf); };
   requestAnimationFrame(lenisRaf);
 }
+
 if (!THREE) {
   canvas.hidden = true;
 } else {
@@ -1365,8 +1516,7 @@ if (!THREE) {
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const geo = new THREE.BoxGeometry(1.5, 1, 1.5);
   geo.translate(0, 0.5, 0);
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.25 });
-  const city = new THREE.InstancedMesh(geo, mat, N * N);
+  const city = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.25 }), N * N);
   const towers = [];
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
   for (let i = 0; i < N; i++) {
@@ -1376,7 +1526,7 @@ if (!THREE) {
       const h = 0.4 + Math.pow(rand(), 2.2) * 11 * clamp(centre, 0.15, 1);
       m.compose(p.set(x, 0, z), q, sc.set(1, h, 1));
       city.setMatrixAt(towers.length, m);
-      towers.push({ x, z, h, risky: h > 3.5 && rand() < 0.22 });
+      towers.push({ x, z, h, risky: false });
     }
   }
   const base = new THREE.Color(0x3a3e4a), scanned = new THREE.Color(0x30356a), red = new THREE.Color(0xeb5757), tmp = new THREE.Color();
@@ -1396,8 +1546,8 @@ if (!THREE) {
     new THREE.MeshBasicMaterial({ color: 0xeb5757, transparent: true, opacity: 0.14, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false }));
   sheet.rotation.y = Math.PI / 2;
   sheet.position.y = 8;
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, N * gap + 6), new THREE.MeshBasicMaterial({ color: 0xff6b6b }));
-  beam.add(sheet, edge);
+  beam.add(sheet, new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, N * gap + 6), new THREE.MeshBasicMaterial({ color: 0xff6b6b })));
+  beam.visible = false;
   scene.add(beam);
 
   const mastH = 15;
@@ -1436,17 +1586,16 @@ if (!THREE) {
   const signTex = new THREE.CanvasTexture(signCanvas);
   signTex.colorSpace = THREE.SRGBColorSpace;
   const signMat = new THREE.SpriteMaterial({ map: signTex, transparent: true, fog: false });
-  const signs = towers.map((tw, k) => tw.risky ? { tw, k, sprite: new THREE.Sprite(signMat), shownAt: -1 } : null).filter(Boolean);
-  signs.forEach(sg => { sg.sprite.visible = false; scene.add(sg.sprite); });
+  let signs = [];
 
-  const risky = towers.filter(t => t.risky);
   const towerAt = (x, z) => {
     const i = Math.round((x + half) / gap), j = Math.round((z + half) / gap);
     return i < 0 || j < 0 || i >= N || j >= N ? null : towers[i * N + j];
   };
-  const hits = (x, y, z, skip, pad) => {
+  const hits = (x, y, z, skipTw, pad) => {
+    if (Math.hypot(x, z) < 0.6 + pad && y < mastH + 1) return true;
     const tw = towerAt(x, z);
-    return !!tw && tw !== skip && Math.abs(x - tw.x) < 0.75 + pad && Math.abs(z - tw.z) < 0.75 + pad && y < tw.h + pad;
+    return !!tw && tw !== skipTw && Math.abs(x - tw.x) < 0.75 + pad && Math.abs(z - tw.z) < 0.75 + pad && y < tw.h + pad;
   };
   const sightClear = (cam, tw) => {
     for (const aimY of [tw.h * 0.6, tw.h + 0.5]) {
@@ -1464,30 +1613,42 @@ if (!THREE) {
     }
     return true;
   };
-  const pickTarget = (t) => {
-    const a = 0.75 + 0.73 * 1.1 + t * 0.03, R = small ? 44 : 50;
-    const from = { x: Math.cos(a) * R, y: small ? 34 : 30, z: Math.sin(a) * R };
+
+  let orbitA = 0.75;
+  let pick = null;
+  const R = small ? 44 : 50, orbitY = small ? 34 : 30;
+  const pickTarget = (pool) => {
+    const from = { x: Math.cos(orbitA) * R, y: orbitY, z: Math.sin(orbitA) * R };
     const choices = [];
-    const pool = risky.filter(tw => tw.h > 4);
-    (pool.length ? pool : risky).forEach(tw => {
-      const base = Math.atan2(from.z - tw.z, from.x - tw.x);
+    pool.forEach(tw => {
+      const baseAng = Math.atan2(from.z - tw.z, from.x - tw.x);
       for (const k of [0, 1, -1, 2, -2, 3, -3]) {
-        const ang = base + k * 0.25;
+        const ang = baseAng + k * 0.25;
         const cam = { x: tw.x + Math.cos(ang) * 10, y: tw.h + 3.5, z: tw.z + Math.sin(ang) * 10 };
         if (sightClear(cam, tw) && pathClear(from, cam, tw)) { choices.push({ tw, ang, cost: Math.abs(k) }); break; }
       }
     });
     if (!choices.length) {
-      const tw = risky.sort((p, q) => q.h - p.h)[0] || towers[0];
+      const tw = pool[0] || towers[0];
       return { tw, ang: Math.atan2(from.z - tw.z, from.x - tw.x), lift: 6 };
     }
     const easy = choices.filter(c => c.cost <= 1);
     const list = easy.length ? easy : choices;
     return { ...list[Math.floor(Math.random() * list.length)], lift: 0 };
   };
-  let pick = pickTarget(0), dived = false;
-  const centre = new THREE.Vector3(0, 2, 0), look = new THREE.Vector3(), orbit = new THREE.Vector3(), close = new THREE.Vector3(), aim = new THREE.Vector3();
 
+  assignFiles = (files) => {
+    towers.forEach(tw => { tw.risky = false; });
+    const tall = [...towers].sort((a, b) => b.h - a.h);
+    pick = pickTarget(tall.slice(0, 25));
+    const rest = tall.slice(0, Math.max(60, files.length + 10)).filter(t => t !== pick.tw).sort(() => Math.random() - 0.5);
+    [pick.tw, ...rest].forEach((tw, i) => { if (files[i]) tw.risky = files[i].risk_score >= 0.5; });
+    signs.forEach(sg => scene.remove(sg.sprite));
+    signs = towers.map((tw, k) => tw.risky ? { tw, k, sprite: new THREE.Sprite(signMat), shownAt: -1 } : null).filter(Boolean);
+    signs.forEach(sg => { sg.sprite.visible = false; scene.add(sg.sprite); });
+  };
+
+  const centre = new THREE.Vector3(0, 2, 0), look = new THREE.Vector3(), orbit = new THREE.Vector3(), close = new THREE.Vector3(), aim = new THREE.Vector3();
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     renderer.setSize(w, h, false);
@@ -1500,31 +1661,38 @@ if (!THREE) {
   let visible = true;
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(intro);
 
-  let alarm = 0;
-  function frame(ms) {
+  let alarm = 0, last = performance.now();
+  function frame(now) {
     requestAnimationFrame(frame);
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
     if (!visible) return;
-    const t = ms / 1000;
-    const s = clamp((shown - 0.2) / 0.42, 0, 1);
-    const scanX = -half - 3 + s * (2 * half + 6);
-    beam.position.x = scanX;
-    beam.visible = s > 0 && s < 1;
+    const t = now / 1000;
+    if (state === 'idle' || state === 'scanning') orbitA += dt * (state === 'scanning' ? 0.06 : 0.03);
+    const revealP = state === 'revealing' ? clamp((now - revealStart) / 1800, 0, 1) : state === 'done' ? 1 : 0;
+    const span = 2 * half + 6;
+    const scanX = -half - 3 + scanShown * span;
+    const revealX = -half - 3 + revealP * span;
+    beam.visible = (state === 'scanning' && scanShown > 0.001) || state === 'revealing';
+    beam.position.x = state === 'revealing' ? revealX : scanX;
     let reds = 0;
     towers.forEach((tw, k) => {
-      if (tw.x > scanX) tmp.copy(base);
-      else if (tw.risky) { reds++; tmp.copy(red).multiplyScalar(0.7 + 0.3 * Math.sin(t * 4 + k)); }
+      if (state === 'idle') tmp.copy(base);
+      else if (state === 'scanning') tmp.copy(tw.x <= scanX ? scanned : base);
+      else if (tw.risky && tw.x <= revealX) { reds++; tmp.copy(red).multiplyScalar(0.7 + 0.3 * Math.sin(t * 4 + k)); }
       else tmp.copy(scanned);
       city.setColorAt(k, tmp);
     });
     city.instanceColor.needsUpdate = true;
 
-    alarm += ((reds ? 1 : 0) * (1 - smooth(0.9, 0.97, shown)) - alarm) * 0.08;
+    const d = state === 'done' && pick ? smooth(0.08, 0.7, shown) : 0;
+    alarm += ((reds ? 1 : 0) * (1 - smooth(0.75, 0.95, shown)) - alarm) * 0.08;
     siren.rotation.y = t * 1.4;
     coneMat.opacity = 0.11 * alarm;
     spots.forEach(sp => { sp.intensity = 6 * alarm; });
     lamp.scale.setScalar(1 + 0.25 * alarm * Math.abs(Math.sin(t * 6)));
     signs.forEach(sg => {
-      const on = shown > 0.2 && sg.tw.x <= scanX;
+      const on = revealP > 0 && sg.tw.x <= revealX;
       if (on && sg.shownAt < 0) sg.shownAt = t;
       if (!on) sg.shownAt = -1;
       sg.sprite.visible = on;
@@ -1533,24 +1701,20 @@ if (!THREE) {
       const size = 1.5 * (1 + 2.70158 * x * x * x + 1.70158 * x * x);
       sg.sprite.scale.set(size, size, 1);
       sg.sprite.position.set(sg.tw.x, sg.tw.h + 1.6 + Math.sin(t * 2.2 + sg.k) * 0.3, sg.tw.z);
-      if (sg.tw !== pick.tw && camera.position.distanceTo(sg.sprite.position) < 7) sg.sprite.visible = false;
+      if (pick && sg.tw !== pick.tw && (d > 0.3 || camera.position.distanceTo(sg.sprite.position) < 7)) sg.sprite.visible = false;
     });
 
-    const angle = 0.75 + shown * 1.1 + t * 0.03;
-    const R = small ? 44 : 50;
-    orbit.set(Math.cos(angle) * R, small ? 34 : 30, Math.sin(angle) * R);
-    const d = smooth(0.6, 0.86, shown);
-    if (d > 0.05) dived = true;
-    else if (dived && shown < 0.5) { pick = pickTarget(t); dived = false; }
-    const target = pick.tw;
-    close.set(target.x + Math.cos(pick.ang) * 10, target.h + 3.5 + pick.lift, target.z + Math.sin(pick.ang) * 10);
+    orbit.set(Math.cos(orbitA) * R, orbitY, Math.sin(orbitA) * R);
+    if (pick) {
+      close.set(pick.tw.x + Math.cos(pick.ang) * 10, pick.tw.h + 3.5 + pick.lift, pick.tw.z + Math.sin(pick.ang) * 10);
+      aim.set(pick.tw.x, pick.tw.h * 0.6, pick.tw.z);
+      glow.position.set(pick.tw.x, pick.tw.h + 2, pick.tw.z);
+    }
     camera.position.lerpVectors(orbit, close, d);
-    aim.set(target.x, target.h * 0.6, target.z);
     look.lerpVectors(centre, aim, d);
     camera.lookAt(look);
-    glow.position.set(target.x, target.h + 2, target.z);
-    glow.intensity = reds ? 30 * d + 4 : 0;
-    canvas.style.opacity = 1 - 0.8 * smooth(0.84, 0.95, shown);
+    glow.intensity = pick && reds ? 30 * d + 4 : 0;
+    canvas.style.opacity = state === 'done' ? 1 - 0.85 * smooth(0.75, 0.95, shown) : 1;
     renderer.render(scene, camera);
   }
   requestAnimationFrame(frame);

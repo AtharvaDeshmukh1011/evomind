@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#010102" />
 <title>EvoMind</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" />
 <style>
   :root {
@@ -84,6 +86,18 @@
   .mono { font-family: var(--mono); }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   code { font-family: var(--mono); font-size: 0.92em; }
+  h1, h2, h3 { text-wrap: balance; }
+  button, a, input, label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .skip-link { position: absolute; left: 16px; top: -64px; z-index: 100; padding: 8px 14px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); color: var(--text); transition: top 150ms ease; }
+  .skip-link:focus { top: 16px; }
+  .opt-toggle:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .dialog { overscroll-behavior: contain; }
+  #results { view-transition-name: results; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+  ::view-transition-old(results) { animation: vt-out 160ms ease both; }
+  ::view-transition-new(results) { animation: vt-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes vt-out { to { opacity: 0; transform: translateY(-6px); } }
+  @keyframes vt-in { from { opacity: 0; transform: translateY(10px); } }
 
   .app { display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); min-height: 100svh; }
   .sidebar { position: sticky; top: 0; height: 100svh; display: flex; flex-direction: column; gap: 2px; padding: 0 12px 16px; overflow: auto; }
@@ -392,10 +406,11 @@
     .meter { width: 48px; }
     .inline-form .input { width: 120px; }
   }
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 2s !important; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; } .ring-flow { animation: none !important; } .ring-dot { display: none; } .spinner { animation-duration: 2s !important; } }
 </style>
 </head>
 <body class="locked">
+<a class="skip-link" href="#sheet">Skip to content</a>
 <section class="intro" id="intro" aria-label="Scan a repository">
   <div class="stage">
     <canvas id="city" aria-hidden="true"></canvas>
@@ -408,7 +423,7 @@
           <label class="repo-field">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="9" r="2.2"/><path d="M6 8.2v7.6M18 11.2c0 3-3 3.8-6 4.3-2 .3-4 1-5 2"/></svg>
             <span class="sr-only">Repository path or Git URL</span>
-            <input id="introRepo" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo" />
+            <input id="introRepo" name="repo" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo" />
           </label>
           <button class="btn primary" type="submit">Analyze</button>
         </form>
@@ -428,11 +443,11 @@
             <div class="pair">
               <div class="field">
                 <label for="horizon">Horizon (days)</label>
-                <input class="input num" type="number" id="horizon" value="365" min="30" max="1825" />
+                <input class="input num" type="number" id="horizon" name="horizon" value="365" min="30" max="1825" />
               </div>
               <div class="field">
                 <label for="trainFraction">Train fraction</label>
-                <input class="input num" type="number" id="trainFraction" value="0.65" min="0.1" max="0.95" step="0.05" />
+                <input class="input num" type="number" id="trainFraction" name="train_fraction" value="0.65" min="0.1" max="0.95" step="0.05" />
               </div>
             </div>
             <p class="hint">The model learns from history up to the train fraction, then labels a file bug-prone if a fix touches it within the horizon.</p>
@@ -459,7 +474,7 @@
 <button class="to-top" id="toTop" type="button" aria-label="Back to top"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 <div class="app" id="app">
   <aside class="sidebar" id="sidebar" aria-label="Views" data-lenis-prevent>
-    <div class="brand">
+    <div class="brand" translate="no">
       <span style="display:inline-flex;align-items:center;gap:8px">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="4" cy="16" r="2.1" fill="currentColor"/><circle cx="16" cy="4" r="2.1" fill="currentColor"/><circle cx="16" cy="16" r="2.1" stroke="currentColor" stroke-width="1.6"/><path d="M4 13.6V8a4 4 0 0 1 4-4h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         EvoMind
@@ -491,6 +506,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 3 12l5 7M16 5l5 7-5 7"/></svg>
         API docs
       </a>
+      <button class="nav-item" id="motionToggle" type="button" aria-pressed="false">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
+        <span id="motionLabel">Pause background</span>
+      </button>
       <button class="nav-item" id="themeToggle" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor"/></svg>
         <span id="themeLabel">Light theme</span>
@@ -503,13 +522,13 @@
       <button class="btn ghost menu-toggle" id="menuToggle" type="button" aria-label="Open navigation" aria-controls="sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       </button>
-      <span class="mobile-brand">
+      <span class="mobile-brand" translate="no">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="4" cy="16" r="2.1" fill="currentColor"/><circle cx="16" cy="4" r="2.1" fill="currentColor"/><circle cx="16" cy="16" r="2.1" stroke="currentColor" stroke-width="1.6"/><path d="M4 13.6V8a4 4 0 0 1 4-4h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
         EvoMind
       </span>
       <form class="scope" id="analyzeForm">
         <label class="sr-only" for="repo">Repository path or Git URL</label>
-        <input class="repo" type="text" id="repo" value="https://github.com/pallets/flask" spellcheck="false" autocomplete="off" placeholder="Repository path or Git URL" />
+        <input class="repo" type="text" id="repo" name="repo" value="https://github.com/pallets/flask" spellcheck="false" autocomplete="off" placeholder="Repository path or Git URL" />
         <button class="btn primary" type="submit" id="analyzeBtn"><span class="btn-label">Analyze</span></button>
       </form>
     </header>
@@ -596,7 +615,7 @@
               <div class="filters">
                 <span class="count" id="riskRowCount"></span>
                 <label class="sr-only" for="riskSearch">Filter files</label>
-                <input class="input" type="search" id="riskSearch" placeholder="Filter by path" />
+                <input class="input" type="search" id="riskSearch" name="risk_filter" placeholder="Filter by path" />
               </div>
             </div>
             <p class="notice" id="llmSzzNote" hidden></p>
@@ -629,7 +648,7 @@
               <div class="filters">
                 <span class="count" id="couplingRowCount"></span>
                 <label class="sr-only" for="couplingSearch">Filter files</label>
-                <input class="input" type="search" id="couplingSearch" placeholder="Filter by path" />
+                <input class="input" type="search" id="couplingSearch" name="coupling_filter" placeholder="Filter by path" />
               </div>
             </div>
             <div class="table-wrap">
@@ -708,7 +727,7 @@
             <div class="inline-form">
               <div class="field">
                 <label for="prNumber">PR number</label>
-                <input class="input num" type="number" id="prNumber" min="1" placeholder="2800" />
+                <input class="input num" type="number" id="prNumber" name="pr_number" min="1" placeholder="2800" />
               </div>
               <label class="check"><input class="switch" type="checkbox" id="prPost" /> Post as a comment on GitHub</label>
               <button class="btn primary" type="button" id="prBtn"><span class="pr-btn-label">Check pull request</span></button>
@@ -775,7 +794,10 @@ function showView() {
   });
   sidebar.classList.remove('open');
 }
-window.addEventListener('hashchange', showView);
+window.addEventListener('hashchange', () => {
+  if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(showView);
+  else showView();
+});
 showView();
 
 document.getElementById('menuToggle').addEventListener('click', () => sidebar.classList.add('open'));
@@ -931,7 +953,7 @@ form.addEventListener('submit', (e) => {
 
   es.addEventListener('error', (ev) => {
     finishProgress();
-    let message = 'Analysis failed: the connection to the server was lost.';
+    let message = 'Analysis failed: the connection to the server was lost. Check that the EvoMind server is running, then try again.';
     if (ev.data) {
       try { message = JSON.parse(ev.data).detail || message; } catch (_) {}
     }
@@ -1373,7 +1395,7 @@ roBtn.addEventListener('click', () => {
     roProgress.hidden = true;
     roBtn.disabled = false;
     roBtnLabel.textContent = 'Run rolling-origin evaluation';
-    let message = 'Rolling-origin evaluation failed: the connection to the server was lost.';
+    let message = 'Rolling-origin evaluation failed: the connection to the server was lost. Check that the EvoMind server is running, then try again.';
     if (ev.data) {
       try { message = JSON.parse(ev.data).detail || message; } catch (_) {}
     }
@@ -1426,6 +1448,7 @@ const scanTime = document.getElementById('scanTime');
 const focusCard = document.getElementById('focusCard');
 const introError = document.getElementById('introError');
 const toTop = document.getElementById('toTop');
+const motionToggle = document.getElementById('motionToggle');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -1435,6 +1458,12 @@ let state = 'idle';
 let lenis = null;
 let scanStart = 0, zoomStart = 0, timer = null;
 let onZoom = () => {}, onReset = () => {};
+let paused = false;
+motionToggle.addEventListener('click', () => {
+  paused = !paused;
+  motionToggle.setAttribute('aria-pressed', String(paused));
+  document.getElementById('motionLabel').textContent = paused ? 'Play background' : 'Pause background';
+});
 
 function bandName(score) {
   return score >= 0.66 ? 'Critical' : score >= 0.5 ? 'Serious' : score >= 0.33 ? 'Watch' : 'Low';
@@ -1548,6 +1577,7 @@ if (LenisMod) {
 
 if (!THREE) {
   canvas.hidden = true;
+  motionToggle.hidden = true;
 } else {
   const small = innerWidth < 700;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -1713,6 +1743,7 @@ if (!THREE) {
   let alarm = 0, last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
+    if (paused) { last = now; return; }
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     const t = now / 1000;

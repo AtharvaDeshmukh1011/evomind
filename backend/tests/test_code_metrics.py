@@ -133,3 +133,15 @@ def test_dart_null_coalescing_counts_once_like_or():
 
 def test_dart_ternary_is_still_a_branch():
     assert _dart_cc("String? f(bool ok, String? a) { return ok ? a : null; }") == 2
+
+
+def test_large_python_data_tables_use_the_fast_path():
+    import time
+    from evomind.metrics.code_metrics import compute_file_metrics
+    rows = ",\n".join(f"    ({i}, {i + 1}): {{'a': {i * 0.5}, 'b': -{i}.25}}" for i in range(4000))
+    source = "P = {\n" + rows + "\n}\n"
+    start = time.time()
+    metrics = compute_file_metrics("prob_trans.py", source)
+    assert time.time() - start < 5
+    assert metrics is not None and metrics.function_count == 0 and metrics.loc > 4000
+

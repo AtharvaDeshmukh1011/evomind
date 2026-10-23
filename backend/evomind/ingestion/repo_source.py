@@ -10,7 +10,7 @@ _URL_PREFIXES = ("http://", "https://", "git@", "ssh://")
 
 _NO_PROMPT_ENV = {"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"}
 
-_CLONE_TIMEOUT_SECONDS = 120
+_CLONE_TIMEOUT_SECONDS = 900
 
 _AUTH_FAILURE_MARKERS = (
     "could not read username",
@@ -38,7 +38,7 @@ def local_repo_path(repo: str):
     try:
         try:
             subprocess.run(
-                ["git", "clone", "--quiet", repo, tmp_dir],
+                ["git", "clone", "--quiet", "--single-branch", "--no-tags", repo, tmp_dir],
                 check=True,
                 capture_output=True,
                 encoding="utf-8",
@@ -65,9 +65,9 @@ def local_repo_path(repo: str):
             raise ValueError(f"Could not clone '{repo}': {exc.stderr or exc}") from exc
         except subprocess.TimeoutExpired as exc:
             raise ValueError(
-                f"Cloning '{repo}' did not finish within {_CLONE_TIMEOUT_SECONDS}s "
-                "— check the URL, or that the repo doesn't require credentials "
-                "EvoMind doesn't have."
+                f"Cloning '{repo}' did not finish within {_CLONE_TIMEOUT_SECONDS // 60} minutes. "
+                "The repository is probably very large or the connection is slow; try again "
+                "on a faster connection, or try a smaller repository."
             ) from exc
         yield tmp_dir
     finally:

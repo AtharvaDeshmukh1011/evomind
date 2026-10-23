@@ -24,6 +24,9 @@ def trend_times(start: datetime, end: datetime, points: int = TREND_POINTS) -> l
     return [start + (end - start) * (TREND_START_FRACTION + i * step) for i in range(points - 1)]
 
 
+TREND_FILE_LIMIT = 300
+
+
 def score_at(model, mined: MinedRepository, when: datetime, snapshots: dict[str, str]) -> dict[str, float]:
     frame = build_feature_table(mined, cutoff=when, snapshots=snapshots, horizon_days=0)
     if frame.empty:
@@ -37,8 +40,13 @@ def compute_risk_trends(
     history: list[tuple[datetime, dict[str, str]]],
     now: datetime,
     current: pd.DataFrame,
+    limit: int = TREND_FILE_LIMIT,
 ) -> dict[str, list[TrendPoint]]:
-    series = [(when, score_at(model, mined, when, snapshots)) for when, snapshots in history]
+    focus = set(current.nlargest(limit, "risk_score")["file_path"]) if len(current) > limit else None
+    series = [
+        (when, score_at(model, mined, when, snapshots if focus is None else {p: src for p, src in snapshots.items() if p in focus}))
+        for when, snapshots in history
+    ]
     series.append((now, dict(zip(current["file_path"], current["risk_score"]))))
     return {
         path: [

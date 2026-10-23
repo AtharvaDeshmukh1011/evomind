@@ -71,3 +71,15 @@ def test_delta_needs_two_known_points():
     assert trend_delta([TrendPoint("2021-01-01", None), TrendPoint("2021-06-01", 0.4)]) is None
     assert trend_delta([TrendPoint("2021-01-01", 0.5), TrendPoint("2021-06-01", None),
                         TrendPoint("2021-12-01", 0.2)]) == 0.2 - 0.5
+
+
+def test_only_the_riskiest_files_are_rescored_in_history():
+    mined = MinedRepository(records=[_rec(p, datetime(2021, 1, 1)) for p in ("a.py", "b.py", "c.py")])
+    history = [(datetime(2021, 6, 1), {"a.py": SOURCE, "b.py": SOURCE, "c.py": SOURCE})]
+    current = pd.DataFrame({"file_path": ["a.py", "b.py", "c.py"], "risk_score": [0.9, 0.1, 0.5]})
+
+    trends = compute_risk_trends(CommitCountModel(), mined, history, datetime(2021, 12, 1), current, limit=2)
+
+    assert trends["a.py"][0].risk is not None and trends["c.py"][0].risk is not None
+    assert trends["b.py"][0].risk is None
+    assert trends["b.py"][-1].risk == 0.1

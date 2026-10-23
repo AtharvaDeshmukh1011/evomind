@@ -1,5 +1,5 @@
 import { reduce, clamp, smooth, flags } from './shared.js?v=1';
-import { startCritters } from './critters.js?v=1';
+import { startCritters } from './critters.js?v=2';
 const app = document.getElementById('app');
 const canvas = document.getElementById('city');
 const hero = document.getElementById('hero');

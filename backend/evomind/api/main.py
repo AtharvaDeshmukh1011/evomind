@@ -5,7 +5,9 @@ import os
 import queue
 import threading
 import time
+import urllib.request
 from collections import deque
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
@@ -46,6 +48,69 @@ def _validate_repo_arg(repo: str) -> None:
         raise ValueError(f"'{repo}' is outside the allowed local repo root ({resolved_root}).")
 
 _last_result: dict[str, PipelineResult] = {}
+_result_meta: dict[str, tuple[float, tuple]] = {}
+MAX_REMEMBERED = 6
+RECENT_SECONDS = 6 * 60 * 60
+PUBLIC = os.environ.get("EVOMIND_PUBLIC") == "1"
+MAX_REPO_MB = int(os.environ.get("EVOMIND_MAX_REPO_MB", "400"))
+_queue_cond = threading.Condition()
+_queue_line: list = []
+
+
+def _remember(repo: str, result: PipelineResult, params: tuple) -> None:
+    _last_result.pop(repo, None)
+    _last_result[repo] = result
+    _result_meta[repo] = (time.time(), params)
+    while len(_last_result) > MAX_REMEMBERED:
+        oldest = next(iter(_last_result))
+        _last_result.pop(oldest)
+        _result_meta.pop(oldest, None)
+
+
+def _recent(repo: str, params: tuple) -> PipelineResult | None:
+    meta = _result_meta.get(repo)
+    if repo in _last_result and meta and meta[1] == params and time.time() - meta[0] < RECENT_SECONDS:
+        return _last_result[repo]
+    return None
+
+
+@contextmanager
+def _turn(notify=lambda message: None):
+    token = object()
+    with _queue_cond:
+        _queue_line.append(token)
+        shown = None
+        while _queue_line[0] is not token:
+            position = _queue_line.index(token)
+            if position != shown:
+                notify(f"Another analysis is running. You're #{position} in line…")
+                shown = position
+            _queue_cond.wait(timeout=5)
+    try:
+        yield
+    finally:
+        with _queue_cond:
+            _queue_line.remove(token)
+            _queue_cond.notify_all()
+
+
+def _check_public_limits(repo: str) -> None:
+    if not PUBLIC:
+        return
+    try:
+        owner, name = parse_repo(repo)
+    except ValueError as exc:
+        raise ValueError("The public demo analyses public GitHub repositories only, e.g. https://github.com/pallets/click.") from exc
+    try:
+        with urllib.request.urlopen(f"https://api.github.com/repos/{owner}/{name}", timeout=10) as resp:
+            size_mb = json.load(resp).get("size", 0) / 1024
+    except Exception:
+        return
+    if size_mb > MAX_REPO_MB:
+        raise ValueError(
+            f"'{owner}/{name}' is about {size_mb:.0f} MB, over the public demo's {MAX_REPO_MB} MB limit. "
+            "Run EvoMind locally to analyse it."
+        )
 
 app = FastAPI(
     title="EvoMind API",
@@ -251,19 +316,22 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
 
 @app.post("/analyze", response_model=AnalyzeResponse)
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
-    try:
-        _validate_repo_arg(req.repo)
-        result = run_pipeline(
-            repo=req.repo,
-            horizon_days=req.horizon_days,
-            train_fraction=req.train_fraction,
-            use_llm_szz=req.use_llm_szz,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    _last_result.clear()
-    _last_result[req.repo] = result
+    params = (req.horizon_days, req.train_fraction, req.use_llm_szz)
+    result = _recent(req.repo, params)
+    if result is None:
+        try:
+            _validate_repo_arg(req.repo)
+            _check_public_limits(req.repo)
+            with _turn():
+                result = run_pipeline(
+                    repo=req.repo,
+                    horizon_days=req.horizon_days,
+                    train_fraction=req.train_fraction,
+                    use_llm_szz=req.use_llm_szz,
+                )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _remember(req.repo, result, params)
 
     return _build_analyze_response(result, req.top_n)
 
@@ -287,15 +355,24 @@ def analyze_stream(
 
         def worker() -> None:
             try:
+                params = (horizon_days, train_fraction, use_llm_szz)
+                cached = _recent(repo, params)
+                if cached is not None:
+                    events.put(("progress", "Using a recent analysis of this repository…"))
+                    outcome["result"] = cached
+                    return
                 _validate_repo_arg(repo)
-                result = run_pipeline(
-                    repo=repo,
-                    horizon_days=horizon_days,
-                    train_fraction=train_fraction,
-                    on_progress=lambda message: events.put(("progress", message)),
-                    use_llm_szz=use_llm_szz,
-                )
+                _check_public_limits(repo)
+                with _turn(lambda message: events.put(("queue", message))):
+                    result = run_pipeline(
+                        repo=repo,
+                        horizon_days=horizon_days,
+                        train_fraction=train_fraction,
+                        on_progress=lambda message: events.put(("progress", message)),
+                        use_llm_szz=use_llm_szz,
+                    )
                 outcome["result"] = result
+                outcome["params"] = params
             except ValueError as exc:
                 outcome["error"] = (422, str(exc))
             except Exception as exc:
@@ -307,8 +384,8 @@ def analyze_stream(
 
         while True:
             kind, payload = events.get()
-            if kind == "progress":
-                yield _sse("progress", {"message": payload})
+            if kind in ("progress", "queue"):
+                yield _sse(kind, {"message": payload})
             else:
                 break
 
@@ -318,8 +395,8 @@ def analyze_stream(
             return
 
         result = outcome["result"]
-        _last_result.clear()
-        _last_result[repo] = result
+        if "params" in outcome:
+            _remember(repo, result, outcome["params"])
         response = _build_analyze_response(result, top_n)
         yield _sse("result", response.model_dump())
 
@@ -345,12 +422,14 @@ def rolling_origin_stream(
         def worker() -> None:
             try:
                 _validate_repo_arg(repo)
-                result = run_rolling_origin_evaluation(
-                    repo=repo,
-                    horizon_days=horizon_days,
-                    cutoff_fractions=fractions,
-                    on_progress=lambda message: events.put(("progress", message)),
-                )
+                _check_public_limits(repo)
+                with _turn(lambda message: events.put(("progress", message))):
+                    result = run_rolling_origin_evaluation(
+                        repo=repo,
+                        horizon_days=horizon_days,
+                        cutoff_fractions=fractions,
+                        on_progress=lambda message: events.put(("progress", message)),
+                    )
                 outcome["result"] = result
             except ValueError as exc:
                 outcome["error"] = (422, str(exc))
@@ -363,8 +442,8 @@ def rolling_origin_stream(
 
         while True:
             kind, payload = events.get()
-            if kind == "progress":
-                yield _sse("progress", {"message": payload})
+            if kind in ("progress", "queue"):
+                yield _sse(kind, {"message": payload})
             else:
                 break
 
@@ -405,6 +484,11 @@ def rolling_origin_stream(
 
 @app.post("/recommend", response_model=RecommendResponse)
 def recommend(req: RecommendRequest) -> RecommendResponse:
+    if PUBLIC and os.environ.get("EVOMIND_PUBLIC_AI") != "1":
+        raise HTTPException(
+            status_code=403,
+            detail="AI recommendations are switched off on the public demo. Run EvoMind locally with a GROQ_API_KEY to use them.",
+        )
     result = _last_result.get(req.repo)
     if result is None:
         raise HTTPException(
@@ -471,7 +555,8 @@ def _analysis_for(repo: str) -> PipelineResult:
         if hit and time.time() - hit[0] < ANALYSIS_TTL_SECONDS:
             return hit[1]
         owner, name = parse_repo(repo)
-        result = run_pipeline(f"https://github.com/{owner}/{name}")
+        with _turn():
+            result = run_pipeline(f"https://github.com/{owner}/{name}")
         _analysis_cache[key] = (time.time(), result)
         return result
 
@@ -496,6 +581,8 @@ class PRRiskRequest(BaseModel):
 
 @app.post("/pr-risk")
 def pr_risk(req: PRRiskRequest) -> dict:
+    if PUBLIC and req.post_comment:
+        raise HTTPException(status_code=403, detail="Posting comments is switched off on the public demo; the check itself still works.")
     try:
         return _check_pull_request(req.repo, req.pr_number, req.post_comment)
     except ValueError as exc:

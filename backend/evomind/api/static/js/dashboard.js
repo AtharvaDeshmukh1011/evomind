@@ -180,6 +180,12 @@ form.addEventListener('submit', (e) => {
     document.dispatchEvent(new CustomEvent('evo:progress', { detail: message }));
   });
 
+  es.addEventListener('queue', (ev) => {
+    const message = JSON.parse(ev.data).message;
+    document.getElementById('pageSub').textContent = message;
+    document.dispatchEvent(new CustomEvent('evo:queue', { detail: message }));
+  });
+
   es.addEventListener('result', (ev) => {
     const data = JSON.parse(ev.data);
     finishProgress();

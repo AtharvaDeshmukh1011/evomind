@@ -9,7 +9,7 @@ from datetime import datetime
 from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
 
 
-MAX_COMMITS = 3000
+MAX_COMMITS = 20_000
 MAX_SOURCE_BYTES = 500_000
 
 

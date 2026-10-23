@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Push the app to the Space
+      - name: Push the showcase to the Space
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_SPACE: ${{ vars.HF_SPACE }}
@@ -21,8 +21,9 @@ jobs:
             exit 0
           fi
           mkdir space
-          cp deploy/huggingface/Dockerfile deploy/huggingface/README.md space/
-          rsync -a --exclude tests --exclude '__pycache__' --exclude '.venv' backend space/
+          cp -r backend/evomind/api/static space/static
+          sed 's#<head>#<head>\n<script>window.EVOMIND_STATIC = true;</script>#' backend/evomind/api/static/index.html > space/index.html
+          cp deploy/huggingface/README.md space/
           cd space
           git init -q -b main
           git config user.email "actions@github.com"

@@ -108,6 +108,12 @@ class RiskyFile(BaseModel):
     trend_delta: float | None = None
 
 
+class CityFile(BaseModel):
+    file_path: str
+    loc: int
+    risk_score: float
+
+
 class CoupledFile(BaseModel):
     file_path: str
     afferent: int
@@ -133,6 +139,7 @@ class AnalyzeResponse(BaseModel):
     llm_szz_fallback: int | None = None
     history_start: str | None = None
     history_end: str | None = None
+    city: list[CityFile] = []
 
 
 class FoldEval(BaseModel):
@@ -179,6 +186,14 @@ def dashboard() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
+def _city_files(result, limit: int = 200) -> list[CityFile]:
+    df = getattr(result, "current_metrics", None)
+    if df is None or df.empty or not {"file_path", "loc", "risk_score"} <= set(df.columns):
+        return []
+    rows = df.sort_values("risk_score", ascending=False).head(limit)
+    return [CityFile(file_path=str(r.file_path), loc=int(r.loc), risk_score=float(r.risk_score)) for r in rows.itertuples()]
+
+
 def _finite_or_none(value):
     if value is None:
         return None
@@ -188,6 +203,7 @@ def _finite_or_none(value):
 
 def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeResponse:
     top_risk = result.file_risk_scores.head(top_n)
+    city = _city_files(result)
 
     most_coupled = sorted(
         result.coupling, key=lambda c: c.afferent + c.efferent, reverse=True
@@ -227,6 +243,7 @@ def _build_analyze_response(result: PipelineResult, top_n: int) -> AnalyzeRespon
             if c.afferent + c.efferent > 0
         ],
         cyclic_groups=result.cyclic_groups,
+        city=city,
         llm_szz_assessed=result.llm_szz_stats.assessed if result.llm_szz_stats else None,
         llm_szz_fallback=result.llm_szz_stats.fallback if result.llm_szz_stats else None,
     )

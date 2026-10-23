@@ -282,6 +282,7 @@ function render(data) {
   prResult.innerHTML = '';
   prStatus.hidden = true;
   showView();
+  document.dispatchEvent(new CustomEvent('evo:data', { detail: data }));
 }
 
 function renderHistory(data) {

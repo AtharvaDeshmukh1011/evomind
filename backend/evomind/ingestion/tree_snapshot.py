@@ -6,6 +6,7 @@ import subprocess
 import tarfile
 from datetime import datetime
 
+from evomind.ingestion.git_miner import parse_git_date
 from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
 
 
@@ -15,13 +16,13 @@ MAX_SOURCE_BYTES = 500_000
 
 def commit_date_range(repo_path: str, max_commits: int = MAX_COMMITS) -> tuple[datetime, datetime]:
     out = subprocess.run(
-        ["git", "-C", repo_path, "log", "--format=%aI", "-n", str(max_commits)],
+        ["git", "-C", repo_path, "log", "--format=%aI|%at", "-n", str(max_commits)],
         check=True,
         capture_output=True,
         encoding="utf-8",
         errors="replace",
     ).stdout
-    dates = [datetime.fromisoformat(line).replace(tzinfo=None) for line in out.splitlines() if line]
+    dates = [parse_git_date(*line.split("|", 1)) for line in out.splitlines() if "|" in line]
     if not dates:
         raise ValueError("No commits found in repository.")
     return min(dates), max(dates)

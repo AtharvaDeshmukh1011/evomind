@@ -4,7 +4,7 @@ import os
 import re
 import subprocess
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydriller import Repository
 
@@ -31,6 +31,13 @@ class FileCommitRecord:
 @dataclass
 class MinedRepository:
     records: list[FileCommitRecord] = field(default_factory=list)
+
+
+def parse_git_date(iso_text: str, unix_text: str) -> datetime:
+    try:
+        return datetime.fromisoformat(iso_text.strip()).replace(tzinfo=None)
+    except ValueError:
+        return datetime.fromtimestamp(int(unix_text.strip()), tz=timezone.utc).replace(tzinfo=None)
 
 
 def is_bug_fixing_commit(message: str) -> bool:
@@ -91,7 +98,7 @@ def _mine_with_git_log(
     only_source_exts: tuple[str, ...],
 ) -> MinedRepository:
     cmd = ["git", "-C", repo_path, "-c", "core.quotepath=off", "log", "--reverse", "--no-merges", "-M",
-           "--numstat", "--format=%x1e%H%x1f%ae%x1f%an%x1f%aI%x1f%B%x1f"]
+           "--numstat", "--format=%x1e%H%x1f%ae%x1f%an%x1f%aI%x1f%at%x1f%B%x1f"]
     if since is not None:
         cmd.append(f"--since={since.isoformat()}")
     if to is not None:
@@ -102,10 +109,10 @@ def _mine_with_git_log(
         if not chunk.strip():
             continue
         parts = chunk.split("")
-        if len(parts) < 6:
+        if len(parts) < 7:
             continue
-        commit_hash, email, name, date_text, message, stats = parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]
-        author_date = datetime.fromisoformat(date_text.strip()).replace(tzinfo=None)
+        commit_hash, email, name, date_text, unix_text, message, stats = parts[:7]
+        author_date = parse_git_date(date_text, unix_text)
         bug_fix = is_bug_fixing_commit(message)
         for line in stats.splitlines():
             fields = line.split("	")

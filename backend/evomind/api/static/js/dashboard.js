@@ -152,6 +152,51 @@ function showError(message) {
   statusLine.hidden = false;
 }
 
+const STATIC = !!window.EVOMIND_STATIC;
+const SAVED_REPOS = ['pallets/click', 'pallets/flask', 'psf/requests', 'django/django'];
+const REPLAY_STEPS = [
+  'Cloning repository…', 'Mining commit history…', 'Reading code at the training cutoff…',
+  "Reading the repository's current state…", 'Computing code metrics and building features…',
+  'Tracing bug-inducing commits (SZZ)…', 'Reading earlier snapshots for risk trends…',
+  'Training Random Forest and Logistic Regression models…', "Scoring the repository's current files…",
+  'Computing risk trends…', 'Building the dependency graph…', 'Done.',
+];
+const LIVE_ONLY = 'the live version of EvoMind. Run it locally to use this.';
+
+function savedFile(repo) {
+  const slug = repoName(repo).toLowerCase();
+  if (!SAVED_REPOS.includes(slug)) return null;
+  return slug === 'pallets/click' ? '/static/sample-analysis.json' : `/static/samples/${slug.replace('/', '__')}.json`;
+}
+
+function replaySaved(repo) {
+  const handlers = {};
+  const fake = { closed: false, addEventListener(type, fn) { (handlers[type] = handlers[type] || []).push(fn); }, close() { fake.closed = true; } };
+  const emit = (type, payload) => { if (!fake.closed) (handlers[type] || []).forEach(fn => fn({ data: JSON.stringify(payload) })); };
+  setTimeout(async () => {
+    const file = savedFile(repo);
+    if (!file) {
+      emit('error', { detail: `This online demo shows saved analyses only (${SAVED_REPOS.join(', ')}). Run EvoMind locally to scan any repository.` });
+      return;
+    }
+    let data;
+    try { data = await (await fetch(file)).json(); } catch (_) { emit('error', { detail: 'The saved analysis could not be loaded.' }); return; }
+    for (const step of REPLAY_STEPS) {
+      emit('progress', { message: step });
+      await new Promise(r => setTimeout(r, 900));
+    }
+    emit('result', data);
+  }, 300);
+  return fake;
+}
+
+if (STATIC) {
+  const docs = document.querySelector('a[href="/docs"]');
+  if (docs) docs.hidden = true;
+  const note = document.getElementById('staticNote');
+  if (note) note.hidden = false;
+}
+
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   const repo = document.getElementById('repo').value.trim();
@@ -172,7 +217,7 @@ form.addEventListener('submit', (e) => {
   resetProgress();
 
   const params = new URLSearchParams({ repo, horizon_days, train_fraction, top_n: 30, use_llm_szz });
-  const es = new EventSource(`/analyze/stream?${params.toString()}`);
+  const es = STATIC ? replaySaved(repo) : new EventSource(`/analyze/stream?${params.toString()}`);
 
   es.addEventListener('progress', (ev) => {
     const message = JSON.parse(ev.data).message;
@@ -522,6 +567,14 @@ function closeRecommendation() {
 const PRIORITY_PILL = { high: 'neg', medium: 'warn', low: '' };
 
 async function openRecommendation(filePath) {
+  if (STATIC) {
+    recReturnFocus = document.activeElement;
+    recFilePath.textContent = displayPath(filePath);
+    recBody.innerHTML = `<p class="muted">AI recommendations need ${LIVE_ONLY}</p>`;
+    recModal.hidden = false;
+    document.getElementById('recClose').focus();
+    return;
+  }
   recReturnFocus = document.activeElement;
   recFilePath.textContent = displayPath(filePath);
   recBody.innerHTML = '<p class="status-text"><span class="spinner" aria-hidden="true"></span>Asking the model for a recommendation…</p>';
@@ -581,6 +634,7 @@ function renderPrReport(data) {
 }
 
 prBtn.addEventListener('click', async () => {
+  if (STATIC) { prStatus.hidden = false; prStatus.textContent = `The pull-request check needs ${LIVE_ONLY}`; return; }
   const number = parseInt(document.getElementById('prNumber').value, 10);
   prStatus.hidden = false;
   if (!currentRepo) { prStatus.textContent = 'Run an analysis first. The check reuses it.'; return; }
@@ -614,6 +668,7 @@ const roStatus = document.getElementById('rollingOriginStatus');
 const roResults = document.getElementById('rollingOriginResults');
 
 roBtn.addEventListener('click', () => {
+  if (STATIC) { roResults.innerHTML = `<p class="muted">Rolling-origin evaluation needs ${LIVE_ONLY}</p>`; return; }
   if (!currentRepo) return;
   const horizon_days = parseInt(document.getElementById('horizon').value, 10);
 

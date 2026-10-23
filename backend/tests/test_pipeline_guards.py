@@ -62,7 +62,7 @@ def test_too_few_files_still_reports_counts_without_crashing():
         _run_with(df, [_rec("f0.py")])
 
     message = str(exc.value)
-    assert "Only 5 files / 1 label classes" in message
+    assert "only 5 source files" in message and "at least 20" in message
 
 
 def test_single_label_class_is_rejected_with_both_counts():
@@ -70,7 +70,7 @@ def test_single_label_class_is_rejected_with_both_counts():
     with pytest.raises(ValueError) as exc:
         _run_with(df, [_rec("f0.py")])
 
-    assert "Only 30 files / 1 label classes" in str(exc.value)
+    assert "None of the 30 files needed a bug fix" in str(exc.value)
 
 
 def test_empty_table_survives_the_llm_szz_path_too():

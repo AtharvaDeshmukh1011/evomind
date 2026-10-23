@@ -9,9 +9,13 @@ from datetime import datetime
 from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
 
 
-def commit_date_range(repo_path: str) -> tuple[datetime, datetime]:
+MAX_COMMITS = 3000
+MAX_SOURCE_BYTES = 500_000
+
+
+def commit_date_range(repo_path: str, max_commits: int = MAX_COMMITS) -> tuple[datetime, datetime]:
     out = subprocess.run(
-        ["git", "-C", repo_path, "log", "--format=%aI"],
+        ["git", "-C", repo_path, "log", "--format=%aI", "-n", str(max_commits)],
         check=True,
         capture_output=True,
         encoding="utf-8",
@@ -51,6 +55,8 @@ def read_files_at_commit(
             if not member.isfile():
                 continue
             if only_source_exts and not member.name.endswith(only_source_exts):
+                continue
+            if member.size > MAX_SOURCE_BYTES:
                 continue
             extracted = tar.extractfile(member)
             if extracted is None:

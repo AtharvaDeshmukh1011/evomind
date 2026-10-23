@@ -99,8 +99,14 @@ def _compute_dart_metrics(file_path: str, source: str) -> FileMetrics | None:
     return replace(measured, file_path=file_path) if measured else None
 
 
+def _looks_like_data(source: str) -> bool:
+    return len(source) > 50_000 and source.count("def ") + source.count("class ") < len(source) // 20_000
+
+
 def compute_file_metrics(file_path: str, source: str) -> FileMetrics | None:
     if file_path.endswith(".py"):
+        if _looks_like_data(source):
+            return _compute_lizard_metrics(file_path, source)
         return _compute_python_metrics(file_path, source)
     if file_path.endswith(".dart"):
         return _compute_dart_metrics(file_path, source)

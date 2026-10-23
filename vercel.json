@@ -1,0 +1,6 @@
+{
+  "buildCommand": "sh deploy/vercel/build.sh",
+  "installCommand": "echo no install needed",
+  "outputDirectory": "site",
+  "framework": null
+}

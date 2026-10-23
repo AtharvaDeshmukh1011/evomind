@@ -67,9 +67,9 @@ def run_rolling_origin_evaluation(
         start, end = commit_date_range(path)
 
         report_progress("Mining commit history…")
-        mined = mine_repository(path)
+        mined = mine_repository(path, since=start)
         if not mined.records:
-            raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
+            raise ValueError(f"No source code found in '{repo}'. It may contain only documentation or configuration, or code in a language EvoMind can't read.")
 
         for i, fraction in enumerate(cutoff_fractions):
             cutoff = start + (end - start) * fraction

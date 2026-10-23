@@ -78,10 +78,10 @@ def run_pipeline(
         horizon_end = cutoff + timedelta(days=horizon_days)
 
         report_progress("Mining commit history…")
-        mined = mine_repository(path)
+        mined = mine_repository(path, since=start)
 
         if not mined.records:
-            raise ValueError(f"No source files mined from '{repo}'. Check the repo URL/path.")
+            raise ValueError(f"No source code found in '{repo}'. It may contain only documentation or configuration, or code in a language EvoMind can't read.")
 
         report_progress("Reading code at the training cutoff…")
         cutoff_commit = commit_at_or_before(path, cutoff)
@@ -120,12 +120,20 @@ def run_pipeline(
     if train_df.empty:
         raise ValueError(_no_analysable_files_message(repo, mined, cutoff))
 
-    label_classes = train_df["is_bug_prone"].nunique()
-    if len(train_df) < 20 or label_classes < 2:
+    if len(train_df) < 20:
         raise ValueError(
-            f"Only {len(train_df)} files / {label_classes} label classes after "
-            "feature extraction — not enough signal to train. Try a larger repo, "
-            "longer horizon_days, or an earlier train_fraction."
+            f"'{repo}' had only {len(train_df)} source files at the training cutoff; EvoMind needs "
+            "at least 20 to learn from. Try a larger repository, or a later train fraction such as 0.8."
+        )
+    if train_df["is_bug_prone"].nunique() < 2:
+        if train_df["is_bug_prone"].iloc[0]:
+            raise ValueError(
+                f"All {len(train_df)} files needed a bug fix in the {horizon_days} days after the "
+                "training cutoff, so there is nothing to compare against. Try a shorter horizon."
+            )
+        raise ValueError(
+            f"None of the {len(train_df)} files needed a bug fix in the {horizon_days} days after the "
+            "training cutoff, so there is nothing to learn from. Try a longer horizon or an earlier train fraction."
         )
 
     report_progress("Training Random Forest and Logistic Regression models…")

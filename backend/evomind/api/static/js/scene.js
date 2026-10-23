@@ -89,6 +89,10 @@ document.addEventListener('evo:progress', (e) => {
   scanHeadline.textContent = e.detail;
 });
 
+document.addEventListener('evo:queue', (e) => {
+  if (state === 'scanning') scanHeadline.textContent = e.detail;
+});
+
 document.addEventListener('evo:error', (e) => {
   if (state !== 'scanning') return;
   clearInterval(timer);

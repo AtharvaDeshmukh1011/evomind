@@ -11,12 +11,12 @@ const focusCard = document.getElementById('focusCard');
 const introError = document.getElementById('introError');
 const toTop = document.getElementById('toTop');
 const motionToggle = document.getElementById('motionToggle');
-const SWEEP_MS = 20000, ZOOM_MS = 2600;
+const SWEEP_MS = 20000, ZOOM_MS = 2600, GROW_MS = 1600;
 
 let state = 'idle';
 let lenis = null;
 let scanStart = 0, zoomStart = 0, timer = null;
-let onZoom = () => {}, onReset = () => {};
+let onZoom = () => {}, onReset = () => {}, buildCity = null, cityData = null;
 let doneAt = 0;
 motionToggle.addEventListener('click', () => {
   flags.paused = !flags.paused;
@@ -100,6 +100,12 @@ document.addEventListener('evo:error', (e) => {
   introError.hidden = false;
 });
 
+document.addEventListener('evo:data', (e) => {
+  if (!e.detail.city || !e.detail.city.length) return;
+  cityData = e.detail.city;
+  if (buildCity) buildCity(cityData);
+});
+
 document.addEventListener('evo:result', (e) => {
   if (state !== 'scanning') return;
   clearInterval(timer);
@@ -114,9 +120,9 @@ document.addEventListener('evo:result', (e) => {
   scanLog.classList.add('out');
   focusCard.classList.add('in');
   state = 'zooming';
-  zoomStart = performance.now();
+  zoomStart = performance.now() + (buildCity && cityData ? GROW_MS : 0);
   onZoom(files.filter(f => f.risk_score >= 0.5).length);
-  setTimeout(() => showResults(true), reduce ? 0 : ZOOM_MS + 1000);
+  setTimeout(() => showResults(true), reduce ? 0 : ZOOM_MS + 1000 + (buildCity && cityData ? GROW_MS : 0));
 });
 
 addEventListener('scroll', () => {
@@ -148,12 +154,14 @@ if (!THREE) {
   scene.fog = new THREE.Fog(0x010102, 45, 120);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
 
-  const N = small ? 12 : 18, gap = 2.2, half = (N - 1) * gap / 2, span = 2 * half + 6;
+  const gap = 2.2;
+  let N = small ? 12 : 18, half = (N - 1) * gap / 2, span = 2 * half + 6;
   let seed = 1 + Math.floor(Math.random() * 2147483645);
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const geo = new THREE.BoxGeometry(1.5, 1, 1.5);
   geo.translate(0, 0.5, 0);
-  const city = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.25 }), N * N);
+  const cityMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, metalness: 0.25 });
+  let city = new THREE.InstancedMesh(geo, cityMat, N * N);
   const towers = [];
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3();
   for (let i = 0; i < N; i++) {
@@ -166,10 +174,12 @@ if (!THREE) {
       towers.push({ x, z, h, risky: h > 3.5 && rand() < 0.22, seen: false });
     }
   }
+  let grid = towers.slice(), realCity = false, topTower = null, growStart = 0;
   const base = new THREE.Color(0x3a3e4a), scanned = new THREE.Color(0x30356a), red = new THREE.Color(0xeb5757), tmp = new THREE.Color();
   scene.add(city);
 
-  scene.add(new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b));
+  let gridHelper = new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b);
+  scene.add(gridHelper);
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
   const sun = new THREE.DirectionalLight(0xc9cdff, 1.4);
   sun.position.set(25, 45, 15);
@@ -233,7 +243,7 @@ if (!THREE) {
 
   const towerAt = (x, z) => {
     const i = Math.round((x + half) / gap), j = Math.round((z + half) / gap);
-    return i < 0 || j < 0 || i >= N || j >= N ? null : towers[i * N + j];
+    return i < 0 || j < 0 || i >= N || j >= N ? null : grid[i * N + j];
   };
   const hits = (x, y, z, skipTw, pad) => {
     if (Math.hypot(x, z) < 0.6 + pad && y < mastH + 1) return true;
@@ -259,7 +269,7 @@ if (!THREE) {
 
   let orbitA = 0.75;
   let pick = null;
-  const R = small ? 44 : 50, orbitY = small ? 34 : 30;
+  let R = small ? 44 : 50, orbitY = small ? 34 : 30;
   const pickTarget = (pool) => {
     const from = { x: Math.cos(orbitA) * R, y: orbitY, z: Math.sin(orbitA) * R };
     const choices = [];
@@ -282,6 +292,10 @@ if (!THREE) {
 
   onZoom = (highRisk) => {
     towers.forEach(tw => { tw.seen = true; });
+    if (realCity && topTower) {
+      pick = pickTarget([topTower]);
+      return;
+    }
     const reds = towers.filter(tw => tw.risky);
     pick = pickTarget(reds.length ? reds : [...towers].sort((a, b) => b.h - a.h).slice(0, 25));
     if (!pick.tw.risky) { pick.tw.risky = true; addSign(pick.tw); }
@@ -291,7 +305,42 @@ if (!THREE) {
     towers.forEach(tw => { tw.seen = false; });
     pick = null;
   };
-  if (state === 'done') onZoom(document.querySelectorAll('#riskTableBody .pill.neg, #riskTableBody .pill.warn').length || 5);
+  buildCity = (files) => {
+    const list = [...files].sort((a, b) => a.file_path.localeCompare(b.file_path));
+    N = Math.max(4, Math.ceil(Math.sqrt(list.length)));
+    half = (N - 1) * gap / 2;
+    span = 2 * half + 6;
+    R = Math.max(30, half * 2.2 + 22);
+    orbitY = R * 0.62;
+    scene.remove(city);
+    city.dispose();
+    city = new THREE.InstancedMesh(geo, cityMat, list.length);
+    towers.length = 0;
+    grid = new Array(N * N).fill(null);
+    list.forEach((f, idx) => {
+      const i = Math.floor(idx / N), j = idx % N;
+      const tw = { x: i * gap - half, z: j * gap - half, h: 0.6 + Math.log10(f.loc + 1) * 3.2, risky: f.risk_score >= 0.5, seen: true, file: f };
+      towers.push(tw);
+      grid[i * N + j] = tw;
+      m.compose(p.set(tw.x, 0, tw.z), q, sc.set(1, 0.01, 1));
+      city.setMatrixAt(idx, m);
+      city.setColorAt(idx, base);
+    });
+    scene.add(city);
+    scene.remove(gridHelper);
+    gridHelper = new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b);
+    scene.add(gridHelper);
+    signs.forEach(sg => scene.remove(sg.sprite));
+    signs.length = 0;
+    towers.filter(tw => tw.risky).forEach(addSign);
+    topTower = towers.reduce((a, b) => (b.file.risk_score > a.file.risk_score ? b : a), towers[0]);
+    realCity = true;
+    pick = null;
+    growStart = performance.now();
+    if (state === 'done') onZoom(0);
+  };
+  if (cityData) buildCity(cityData);
+  if (state === 'done' && !realCity) onZoom(document.querySelectorAll('#riskTableBody .pill.neg, #riskTableBody .pill.warn').length || 5);
 
   const centre = new THREE.Vector3(0, 2, 0), look = new THREE.Vector3(), orbit = new THREE.Vector3(), close = new THREE.Vector3(), aim = new THREE.Vector3();
   function resize() {
@@ -313,6 +362,14 @@ if (!THREE) {
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
     const t = now / 1000;
+    if (growStart && now - growStart < GROW_MS + 600) {
+      towers.forEach((tw, k) => {
+        const g = smooth(0, 1, (now - growStart - (Math.hypot(tw.x, tw.z) / (half + 1)) * 500) / (GROW_MS - 500));
+        m.compose(p.set(tw.x, 0, tw.z), q, sc.set(1, Math.max(0.01, tw.h * g), 1));
+        city.setMatrixAt(k, m);
+      });
+      city.instanceMatrix.needsUpdate = true;
+    }
     if (state !== 'zooming') orbitA += dt * (state === 'done' ? 0.012 : 0.04);
 
     let beamX = null;

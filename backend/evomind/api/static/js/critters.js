@@ -125,6 +125,8 @@ function pickPrey(now) {
   }
   const fly = crit.flies.find(f => f.state === 'buzz' && f.age > f.patience);
   if (fly) return { p: fly, urgent: false };
+  const stalk = aliveBugs().filter(b => b.state === 'roam' || b.state === 'escape');
+  if (stalk.length) return { p: stalk.sort((p, q) => Math.hypot(p.x - cham.x, p.y - cham.y) - Math.hypot(q.x - cham.x, q.y - cham.y))[0], urgent: false, stalk: true };
   return null;
 }
 
@@ -145,7 +147,9 @@ function updateChameleon(dt, now, v) {
       const m = mouth();
       const d = Math.hypot(look.x - m.x, look.y - m.y);
       const reach = crit.mode === 'feast' ? 560 : REACH;
-      if (d < reach && now > crit.cooldown) {
+      if (choice.stalk) {
+        if (d > 170) cham.wander = { x: clamp(look.x, v.x0, v.x1), y: clamp(look.y, v.y0, v.y1) };
+      } else if (d < reach && now > crit.cooldown) {
         if (crit.prey !== look) { crit.prey = look; crit.aimAt = now + (choice.urgent || crit.mode === 'feast' ? 90 : 380); }
         if (now > crit.aimAt) crit.tongue = { prey: look, t0: now, len: 0, caught: false, eat: !crit.bugs.includes(look) || aliveBugs().length > bugTarget() };
       } else if (d >= reach) {
@@ -161,9 +165,9 @@ function updateChameleon(dt, now, v) {
     if (cham.wander) {
       const d = Math.hypot(cham.wander.x - cham.x, cham.wander.y - cham.y);
       const want = angTo(cham.x, cham.y, cham.wander.x, cham.wander.y);
-      cham.h = turnTo(cham.h, want, 0.9 * dt);
+      cham.h = turnTo(cham.h, want, 2.2 * dt);
       if (d > (look ? REACH * 0.6 : 6) && Math.abs(angDiff(cham.h, want)) < 0.6) {
-        const sp = look ? 34 : 13;
+        const sp = look ? 70 : 32;
         cham.x += Math.cos(cham.h) * sp * dt;
         cham.y += Math.sin(cham.h) * sp * dt;
         cham.phase += sp * dt * 0.22;
@@ -290,6 +294,7 @@ function drawBug(ctx, b) {
   ctx.save();
   ctx.translate(b.x, b.y);
   ctx.rotate(b.h);
+  ctx.scale(1.35, 1.35);
   ctx.strokeStyle = '#1c130d'; ctx.lineWidth = 1; ctx.lineCap = 'round';
   [-3, 0, 3].forEach((lx, i) => {
     const w = Math.sin(b.phase + i * 2) * 1.6;

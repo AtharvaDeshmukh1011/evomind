@@ -1,5 +1,7 @@
 # EvoMind backend (MVP)
 
+**Live demo:** [evomindai.vercel.app](https://evomindai.vercel.app) (also on [Hugging Face](https://huggingface.co/spaces/Deshmukh09/evomind)). The online demo replays saved analyses; run EvoMind locally to scan any repository.
+
 Predictive bug-proneness scoring from Git history and static code metrics (with SZZ-refined labels), architectural coupling/cycle analysis, rolling- origin evaluation, and LLM-generated refactoring recommendations for the riskiest files. This is the first working slice of the full EvoMind proposal: it implements the **Version Control Analysis Module**, **Source Code Analysis Module**, **Software Architecture Analysis Module**, a real **Predictive Analytics Module**, and a first cut of the **AI Recommendation Module**, end to end, on real repositories.
 
 ## What it actually does

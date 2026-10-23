@@ -5,7 +5,7 @@ colorFrom: indigo
 colorTo: gray
 sdk: static
 pinned: false
-short_description: Predicts which files in a Git repository will need a bug fix next
+short_description: Predicts which files will need a bug fix next
 ---
 
 # EvoMind

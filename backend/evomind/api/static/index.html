@@ -129,10 +129,14 @@
   .switch:checked { background: var(--accent); }
   .switch:checked::after { transform: translateX(12px); }
 
-  .options { position: relative; }
-  .popover { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; width: 340px; display: grid; gap: 16px; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08); }
-  .popover .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .popover .input { width: 100%; }
+  .hero-options { display: grid; gap: 16px; margin-top: 16px; padding: 16px; text-align: left; background: var(--raised); border: 1px solid var(--border); border-radius: 12px; }
+  .hero-options .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .hero-options .input { width: 100%; }
+  .hero-links { display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 14px; color: var(--muted); font-size: 13px; }
+  .hero-links a { color: var(--text); }
+  .opt-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; color: var(--text); font-size: 13px; cursor: pointer; }
+  .opt-toggle svg { width: 14px; height: 14px; transition: transform 150ms ease; }
+  .opt-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 
   .title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
   .title-row h1 { font-size: var(--fs-title); line-height: 28px; font-weight: 600; letter-spacing: -0.4px; overflow-wrap: anywhere; }
@@ -218,9 +222,21 @@
 
   .grid-2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 48px; }
 
-  .cycles li { padding: 12px 0; border-top: 1px solid var(--rule); }
-  .cycles li:first-child { border-top: 0; }
-  .cycles .files { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-family: var(--mono); font-size: var(--fs-path); }
+  .cycles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 16px; align-items: start; }
+  .cycle-card { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 8px 24px; align-items: center; padding: 20px 24px; background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius-card); }
+  .cycle-head { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; }
+  .cycle-head h3 { font-size: var(--fs-body); font-weight: 600; }
+  .ring-track { fill: none; stroke: var(--border); stroke-width: 2; }
+  .ring-flow { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 10; opacity: 0.8; animation: ring-flow 1.6s linear infinite; }
+  @keyframes ring-flow { to { stroke-dashoffset: -32; } }
+  .ring-dot { fill: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+  .ring-node circle { fill: var(--surface); stroke: var(--negative); stroke-width: 1.5; transition: fill 150ms ease, stroke-width 150ms ease; }
+  .ring-node text { fill: var(--text); font: 600 11px var(--font); text-anchor: middle; }
+  .ring-node.on circle { fill: var(--pill-negative-bg); stroke-width: 2.5; }
+  .cycle-files { display: grid; gap: 2px; }
+  .cycle-files li { display: flex; gap: 10px; padding: 4px 8px; border-radius: 6px; font-family: var(--mono); font-size: var(--fs-path); overflow-wrap: anywhere; transition: background-color 150ms ease; }
+  .cycle-files li b { min-width: 18px; color: var(--muted); font: 500 12px/20px var(--font); text-align: right; }
+  .cycle-files li.on { background: var(--active); }
 
   #progressPanel { max-width: 640px; }
   .steps { display: grid; border: 1px solid var(--border); border-radius: var(--radius-card); }
@@ -273,34 +289,47 @@
   .suggestion p { margin-top: 6px; color: var(--muted); }
   .error-text { color: var(--negative); }
 
-  .intro { position: relative; height: 100svh; background: var(--ground); }
-  .intro.done { height: 320vh; }
-  .stage { position: sticky; top: 0; height: 100svh; overflow: hidden; }
-  #city { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 55% 45% at 50% 50%, rgba(1, 1, 2, 0.85), transparent 75%); transition: opacity 600ms ease; }
-  .intro.scanning .stage::after, .intro.revealing .stage::after, .intro.done .stage::after { opacity: 0.2; }
-  .hero, .status-card, .scroll-hint, .focus-card { position: absolute; z-index: 2; }
-  .hero { left: 50%; top: 50%; width: min(720px, calc(100vw - 32px)); transform: translate(-50%, -50%); text-align: center; transition: opacity 500ms ease, transform 500ms ease; }
-  .intro.scanning .hero, .intro.revealing .hero, .intro.done .hero { opacity: 0; transform: translate(-50%, -60%); pointer-events: none; }
-  .big { font-size: clamp(32px, 5vw, 56px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 600; }
-  .kicker { color: var(--accent); font-weight: 500; margin-bottom: 12px; }
-  .lead { margin-top: 16px; color: var(--muted); font-size: 16px; line-height: 24px; }
-  .lead a { color: var(--text); }
+  .intro { position: relative; height: 0; }
+  .stage { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+  #city { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: filter 1.2s ease; }
+  #city.blurred { filter: blur(5px); }
+  .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 45%, rgba(1, 1, 2, 0.75) 100%); }
+  .hero, .scan-log, .focus-card { position: absolute; z-index: 2; transition: opacity 600ms ease, transform 600ms ease; }
+  .hero { left: 50%; top: 50%; width: min(640px, calc(100vw - 32px)); transform: translate(-50%, -50%); }
+  .hero.out { opacity: 0; transform: translate(-50%, -48%) scale(0.97); pointer-events: none; }
+  .hero-card { padding: 40px 40px 32px; text-align: center; background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--border); border-radius: 20px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 24px 64px rgba(0, 0, 0, 0.45); }
+  .badge { display: inline-flex; align-items: center; gap: 8px; height: 26px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--raised); color: var(--muted); font-size: var(--fs-small); }
+  .badge i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .hero h2 { margin-top: 18px; font-size: clamp(30px, 4.2vw, 46px); line-height: 1.08; letter-spacing: -0.03em; font-weight: 600; }
+  .hero .lead { margin: 14px auto 0; max-width: 46ch; color: var(--muted); font-size: 16px; line-height: 24px; }
   .intro-row { display: flex; gap: 8px; margin-top: 28px; }
-  .intro-row .repo { flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); font-family: var(--mono); font-size: 14px; }
-  .intro-row .btn { height: 44px; padding: 0 22px; }
+  .repo-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 14px; border: 1px solid var(--control); border-radius: 10px; background: var(--surface); transition: border-color 150ms ease, box-shadow 150ms ease; }
+  .repo-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .repo-field svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+  .repo-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none; font-family: var(--mono); font-size: 14px; }
+  .repo-field input::placeholder { color: var(--faint); }
+  .intro-row .btn { height: 48px; padding: 0 24px; border-radius: 10px; font-size: 15px; }
+  .examples { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; margin-top: 18px; color: var(--muted); font-size: 13px; }
+  .examples button { height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--raised); color: var(--text); font-family: var(--mono); font-size: 12px; cursor: pointer; transition: border-color 150ms ease, background-color 150ms ease; }
+  .examples button:hover { border-color: var(--control); background: var(--active); }
+  .examples a { color: var(--text); }
   .intro-error { margin-top: 16px; color: var(--negative); }
-  .status-card { left: 50%; bottom: 40px; width: min(520px, calc(100vw - 32px)); transform: translateX(-50%); padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
-  .status-top { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: var(--fs-small); }
-  .status-top .mono { color: var(--text); font-size: var(--fs-path); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .status-bar { height: 4px; margin: 12px 0 10px; border-radius: 2px; background: var(--active); overflow: hidden; }
-  .status-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
-  .status-card p { color: var(--muted); }
-  .scroll-hint { left: 50%; top: 50%; width: min(720px, calc(100vw - 32px)); transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
-  .scroll-hint .big { font-size: clamp(28px, 4vw, 44px); }
-  .focus-card { left: clamp(16px, 6vw, 96px); bottom: clamp(48px, 12vh, 120px); max-width: 560px; opacity: 0; pointer-events: none; }
-  .focus-card .path { margin-top: 8px; font-family: var(--mono); font-size: clamp(18px, 2.2vw, 26px); line-height: 1.3; overflow-wrap: anywhere; }
-  .skip { position: absolute; z-index: 3; top: 16px; right: 16px; }
+  .scan-log { left: clamp(16px, 6vw, 96px); bottom: clamp(40px, 10vh, 110px); max-width: min(620px, calc(100vw - 32px)); }
+  .scan-log .kicker, .focus-card .kicker { color: var(--accent); font-weight: 500; margin-bottom: 10px; }
+  .scan-log h2 { font-size: clamp(28px, 3.6vw, 44px); line-height: 1.1; letter-spacing: -0.03em; font-weight: 600; }
+  .scan-log ul { margin-top: 18px; display: grid; gap: 6px; }
+  .scan-log li { display: flex; justify-content: space-between; gap: 24px; max-width: 440px; font-family: var(--mono); font-size: var(--fs-path); color: var(--muted); }
+  .scan-log li span:last-child { color: var(--accent); }
+  .scan-log.out, .focus-card.out { opacity: 0; transform: translateY(12px); pointer-events: none; }
+  .focus-card { left: clamp(16px, 6vw, 96px); bottom: clamp(40px, 10vh, 110px); max-width: min(620px, calc(100vw - 32px)); opacity: 0; transform: translateY(12px); pointer-events: none; }
+  .focus-card.in { opacity: 1; transform: none; }
+  .focus-card.in.out { opacity: 0; transform: translateY(12px); }
+  .focus-card .path { font-family: var(--mono); font-size: clamp(20px, 2.4vw, 30px); line-height: 1.3; overflow-wrap: anywhere; }
+  .focus-card .lead { margin-top: 10px; color: var(--muted); font-size: 16px; }
+  #app { position: relative; z-index: 1; }
+  .sheet { background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .app.rise { animation: rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+  @keyframes rise { from { transform: translateY(100vh); } to { transform: none; } }
   html.lenis, html.lenis body { height: auto; }
   .lenis.lenis-smooth { scroll-behavior: auto !important; }
   .lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
@@ -309,6 +338,10 @@
   .to-top.show { opacity: 1; transform: none; pointer-events: auto; }
   .to-top:hover { background: var(--active); }
   .to-top svg { width: 18px; height: 18px; }
+  @media (max-width: 560px) {
+    .hero-card { padding: 28px 20px 24px; }
+    .intro-row { flex-direction: column; }
+  }
   @media (max-width: 1100px) {
     .start-top { grid-template-columns: minmax(0, 1fr); }
     .how { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -334,8 +367,9 @@
     .scope { order: 3; flex-basis: 100%; max-width: none; }
     .sheet { border-radius: 0; border-width: 1px 0 0; padding-top: 20px; }
     .title-row { flex-wrap: wrap; align-items: flex-start; }
-    .popover { width: min(340px, calc(100vw - 24px)); }
     .history-legend { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+    .cycle-card { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+    .cycle-files { justify-self: stretch; }
     .filters { width: 100%; }
     .kpi .delta { white-space: normal; overflow-wrap: anywhere; }
     .filters .input { flex: 1; width: auto; min-width: 0; }
@@ -365,26 +399,55 @@
 <section class="intro" id="intro" aria-label="Scan a repository">
   <div class="stage">
     <canvas id="city" aria-hidden="true"></canvas>
-    <button class="btn ghost small skip" type="button" id="skipIntro" hidden>Skip to results</button>
     <div class="hero" id="hero">
-      <p class="kicker">EvoMind</p>
-      <h2 class="big">Find the files that will break next.</h2>
-      <form class="intro-row" id="introForm">
-        <label class="sr-only" for="introRepo">Repository path or Git URL</label>
-        <input class="repo" id="introRepo" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo" />
-        <button class="btn primary" type="submit">Scan</button>
-      </form>
-      <p class="intro-error" id="introError" role="alert" hidden></p>
-      <p class="lead">Paste a path or Git URL, or <a href="?sample">open the saved analysis of pallets/click</a>.</p>
+      <div class="hero-card">
+        <span class="badge"><i></i>Bug-risk prediction from git history</span>
+        <h2>Find the files that will break next.</h2>
+        <p class="lead">EvoMind reads a repository's commit history and ranks its files by the chance they will need a bug fix soon.</p>
+        <form class="intro-row" id="introForm">
+          <label class="repo-field">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="9" r="2.2"/><path d="M6 8.2v7.6M18 11.2c0 3-3 3.8-6 4.3-2 .3-4 1-5 2"/></svg>
+            <span class="sr-only">Repository path or Git URL</span>
+            <input id="introRepo" type="text" spellcheck="false" autocomplete="off" placeholder="https://github.com/owner/repo" />
+          </label>
+          <button class="btn primary" type="submit">Analyze</button>
+        </form>
+        <p class="intro-error" id="introError" role="alert" hidden></p>
+        <div class="examples">
+          <span>Try</span>
+          <button type="button" data-example="https://github.com/pallets/click">pallets/click</button>
+          <button type="button" data-example="https://github.com/psf/requests">psf/requests</button>
+          <button type="button" data-example="https://github.com/pallets/flask">pallets/flask</button>
+        </div>
+        <div class="hero-links">
+          <button class="opt-toggle" type="button" id="optionsBtn" aria-expanded="false" aria-controls="optionsPanel">Options <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+          <span aria-hidden="true">·</span>
+          <a href="?sample">Open a saved analysis</a>
+        </div>
+        <div class="hero-options" id="optionsPanel" hidden>
+            <div class="pair">
+              <div class="field">
+                <label for="horizon">Horizon (days)</label>
+                <input class="input num" type="number" id="horizon" value="365" min="30" max="1825" />
+              </div>
+              <div class="field">
+                <label for="trainFraction">Train fraction</label>
+                <input class="input num" type="number" id="trainFraction" value="0.65" min="0.1" max="0.95" step="0.05" />
+              </div>
+            </div>
+            <p class="hint">The model learns from history up to the train fraction, then labels a file bug-prone if a fix touches it within the horizon.</p>
+            <label class="check">
+              <input class="switch" type="checkbox" id="useLlmSzz" />
+              <span><span style="font-weight:500">LLM-assisted SZZ</span><br />
+                <span class="hint">Sends each candidate commit's diff to Groq's API (a third party) to filter blame false-positives, following <a href="https://arxiv.org/abs/2504.01404" target="_blank" rel="noopener">LLM4SZZ</a>. Needs <code>GROQ_API_KEY</code>; without it nothing is sent and plain SZZ is used.</span></span>
+            </label>
+        </div>
+      </div>
     </div>
-    <div class="status-card" id="scanStatus" aria-live="polite" hidden>
-      <div class="status-top"><span class="mono" id="scanRepo"></span><span class="num" id="scanTime">0s</span></div>
-      <div class="status-bar"><i id="scanBar"></i></div>
-      <p id="scanStep">Starting…</p>
-    </div>
-    <div class="scroll-hint" id="scrollHint" hidden>
-      <p class="big" id="foundText"></p>
-      <p class="lead">Scroll to see the riskiest file ↓</p>
+    <div class="scan-log" id="scanLog" aria-live="polite" hidden>
+      <p class="kicker"><span id="scanRepo"></span> · <span class="num" id="scanTime">0s</span></p>
+      <h2 id="scanHeadline">Starting the scan…</h2>
+      <ul id="scanSteps"></ul>
     </div>
     <div class="focus-card" id="focusCard">
       <p class="kicker">Riskiest file</p>
@@ -447,27 +510,6 @@
       <form class="scope" id="analyzeForm">
         <label class="sr-only" for="repo">Repository path or Git URL</label>
         <input class="repo" type="text" id="repo" value="https://github.com/pallets/flask" spellcheck="false" autocomplete="off" placeholder="Repository path or Git URL" />
-        <div class="options">
-          <button class="btn" type="button" id="optionsBtn" aria-expanded="false" aria-controls="optionsPanel">Options</button>
-          <div class="popover" id="optionsPanel" hidden>
-            <div class="pair">
-              <div class="field">
-                <label for="horizon">Horizon (days)</label>
-                <input class="input num" type="number" id="horizon" value="365" min="30" max="1825" />
-              </div>
-              <div class="field">
-                <label for="trainFraction">Train fraction</label>
-                <input class="input num" type="number" id="trainFraction" value="0.65" min="0.1" max="0.95" step="0.05" />
-              </div>
-            </div>
-            <p class="hint">The model learns from history up to the train fraction, then labels a file bug-prone if a fix touches it within the horizon.</p>
-            <label class="check">
-              <input class="switch" type="checkbox" id="useLlmSzz" />
-              <span><span style="font-weight:500">LLM-assisted SZZ</span><br />
-                <span class="hint">Sends each candidate commit's diff to Groq's API (a third party) to filter blame false-positives, following <a href="https://arxiv.org/abs/2504.01404" target="_blank" rel="noopener">LLM4SZZ</a>. Needs <code>GROQ_API_KEY</code>; without it nothing is sent and plain SZZ is used.</span></span>
-            </label>
-          </div>
-        </div>
         <button class="btn primary" type="submit" id="analyzeBtn"><span class="btn-label">Analyze</span></button>
       </form>
     </header>
@@ -759,9 +801,6 @@ function setOptions(open) {
   optionsBtn.setAttribute('aria-expanded', String(open));
 }
 optionsBtn.addEventListener('click', () => setOptions(optionsPanel.hidden));
-document.addEventListener('click', (e) => {
-  if (!optionsPanel.hidden && !e.target.closest('.options')) setOptions(false);
-});
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   setOptions(false);
@@ -1163,14 +1202,38 @@ function renderCycles(cyclicGroups) {
   const list = document.getElementById('cyclesList');
   document.getElementById('navCycleCount').textContent = cyclicGroups && cyclicGroups.length ? cyclicGroups.length : '';
   if (cyclicGroups && cyclicGroups.length) {
-    list.innerHTML = cyclicGroups.map(group => `<li>
-        <span class="muted">${plural(group.length, 'file')} in a cycle</span>
-        <div class="files">${group.map(f => `<span>${escapeHtml(displayPath(f))}</span>`).join('')}</div>
+    list.innerHTML = cyclicGroups.map((group, g) => `<li class="cycle-card">
+        <div class="cycle-head"><h3>Loop ${g + 1}</h3><span class="pill neg">${plural(group.length, 'file')}</span></div>
+        ${cycleRing(group.length)}
+        <ol class="cycle-files">${group.map((f, i) => `<li data-i="${i}"><b>${i + 1}</b><span>${escapeHtml(displayPath(f))}</span></li>`).join('')}</ol>
       </li>`).join('');
   } else {
     list.innerHTML = '<li class="muted">No circular imports found.</li>';
   }
 }
+
+function cycleRing(n) {
+  const S = 180, c = S / 2, r = 64, nodeR = n > 8 ? 10 : 13;
+  const pts = Array.from({ length: n }, (_, i) => {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / n;
+    return [c + r * Math.cos(a), c + r * Math.sin(a)];
+  });
+  const path = `M ${c} ${c - r} A ${r} ${r} 0 1 1 ${c - 0.01} ${c - r} Z`;
+  return `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" aria-hidden="true">
+    <circle class="ring-track" cx="${c}" cy="${c}" r="${r}"/>
+    <circle class="ring-flow" cx="${c}" cy="${c}" r="${r}"/>
+    <circle class="ring-dot" r="4"><animateMotion dur="${(2 + n * 0.35).toFixed(1)}s" repeatCount="indefinite" path="${path}"/></circle>
+    ${pts.map(([x, y], i) => `<g class="ring-node" data-i="${i}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${nodeR}"/><text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}">${i + 1}</text></g>`).join('')}
+  </svg>`;
+}
+const cyclesListEl = document.getElementById('cyclesList');
+cyclesListEl.addEventListener('mouseover', (e) => {
+  const card = e.target.closest('.cycle-card');
+  if (!card) return;
+  const hit = e.target.closest('[data-i]');
+  card.querySelectorAll('[data-i]').forEach(el => el.classList.toggle('on', !!hit && el.dataset.i === hit.dataset.i));
+});
+cyclesListEl.addEventListener('mouseleave', () => cyclesListEl.querySelectorAll('.on').forEach(el => el.classList.remove('on')));
 
 const recModal = document.getElementById('recModal');
 const recBody = document.getElementById('recBody');
@@ -1353,44 +1416,57 @@ if (new URLSearchParams(location.search).has('sample')) {
 }
 </script>
 <script type="module">
-const intro = document.getElementById('intro');
 const app = document.getElementById('app');
 const canvas = document.getElementById('city');
-const scanStatus = document.getElementById('scanStatus');
-const scanStep = document.getElementById('scanStep');
-const scanBar = document.getElementById('scanBar');
+const hero = document.getElementById('hero');
+const scanLog = document.getElementById('scanLog');
+const scanHeadline = document.getElementById('scanHeadline');
+const scanSteps = document.getElementById('scanSteps');
 const scanTime = document.getElementById('scanTime');
-const scrollHint = document.getElementById('scrollHint');
 const focusCard = document.getElementById('focusCard');
-const skip = document.getElementById('skipIntro');
 const introError = document.getElementById('introError');
 const toTop = document.getElementById('toTop');
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
-const STEPS = 12;
+const SWEEP_MS = 20000, ZOOM_MS = 2600;
 
 let state = 'idle';
 let lenis = null;
-let progress = 0, shown = 0;
-let stepIndex = 0, stepAt = 0, scanStart = 0, timer = null;
-let scanShown = 0, revealStart = 0;
-let assignFiles = () => {};
+let scanStart = 0, zoomStart = 0, timer = null;
+let onZoom = () => {}, onReset = () => {};
 
-function readProgress() {
-  if (state !== 'done') { progress = 0; return; }
-  const span = Math.max(intro.offsetHeight - innerHeight, 1);
-  progress = clamp(-intro.getBoundingClientRect().top / span, 0, 1);
-}
 function bandName(score) {
   return score >= 0.66 ? 'Critical' : score >= 0.5 ? 'Serious' : score >= 0.33 ? 'Watch' : 'Low';
 }
-
-if (location.search.includes('sample')) {
-  state = 'skipped';
-  document.body.classList.remove('locked');
-  app.scrollIntoView();
+function addDoneStep(text) {
+  const li = document.createElement('li');
+  li.innerHTML = '<span></span><span>✓</span>';
+  li.firstChild.textContent = text.replace(/…$/, '');
+  scanSteps.appendChild(li);
+  while (scanSteps.children.length > 5) scanSteps.firstElementChild.remove();
 }
+function showResults(animated) {
+  state = 'done';
+  hero.classList.add('out');
+  canvas.classList.add('blurred');
+  scanLog.classList.add('out');
+  focusCard.classList.add('out');
+  document.body.classList.remove('locked');
+  if (animated && !reduce) {
+    app.classList.add('rise');
+    setTimeout(() => app.classList.remove('rise'), 1200);
+  }
+  if (lenis) lenis.resize();
+}
+
+if (location.search.includes('sample')) showResults(false);
+
+document.querySelectorAll('[data-example]').forEach(b => b.addEventListener('click', () => {
+  const input = document.getElementById('introRepo');
+  input.value = b.dataset.example;
+  input.focus();
+}));
 
 document.getElementById('introForm').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1399,15 +1475,15 @@ document.getElementById('introForm').addEventListener('submit', (e) => {
   if (!value) { input.focus(); return; }
   document.getElementById('repo').value = value;
   state = 'scanning';
-  stepIndex = 0;
-  stepAt = scanStart = performance.now();
-  scanShown = 0;
+  scanStart = performance.now();
   introError.hidden = true;
-  intro.classList.add('scanning');
-  scanStatus.hidden = false;
-  document.getElementById('scanRepo').textContent = value.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '');
-  scanStep.textContent = 'Starting…';
+  hero.classList.add('out');
+  document.getElementById('scanRepo').textContent = 'Scanning ' + value.replace(/^https?:\/\/(www\.)?github\.com\//, '').replace(/\.git$/, '');
+  scanHeadline.textContent = 'Starting the scan…';
+  scanSteps.innerHTML = '';
   scanTime.textContent = '0s';
+  scanLog.hidden = false;
+  scanLog.classList.remove('out');
   clearInterval(timer);
   timer = setInterval(() => {
     const s = Math.floor((performance.now() - scanStart) / 1000);
@@ -1418,18 +1494,17 @@ document.getElementById('introForm').addEventListener('submit', (e) => {
 
 document.addEventListener('evo:progress', (e) => {
   if (state !== 'scanning') return;
-  stepIndex = Math.min(stepIndex + 1, STEPS - 1);
-  stepAt = performance.now();
-  scanStep.textContent = e.detail;
+  if (scanHeadline.textContent !== 'Starting the scan…') addDoneStep(scanHeadline.textContent);
+  scanHeadline.textContent = e.detail;
 });
 
 document.addEventListener('evo:error', (e) => {
   if (state !== 'scanning') return;
   clearInterval(timer);
   state = 'idle';
-  scanShown = 0;
-  intro.classList.remove('scanning');
-  scanStatus.hidden = true;
+  onReset();
+  scanLog.hidden = true;
+  hero.classList.remove('out');
   introError.textContent = e.detail;
   introError.hidden = false;
 });
@@ -1438,58 +1513,28 @@ document.addEventListener('evo:result', (e) => {
   if (state !== 'scanning') return;
   clearInterval(timer);
   const files = e.detail.top_risk_files || [];
-  scanStep.textContent = 'Done. Marking the risky files…';
-  state = 'revealing';
-  revealStart = performance.now();
-  assignFiles(files);
-  const n = files.filter(f => f.risk_score >= 0.5).length;
-  document.getElementById('foundText').textContent = n ? `Found ${n} high-risk file${n === 1 ? '' : 's'}.` : 'No high-risk files found.';
   const top = files[0];
   if (top) {
     document.getElementById('focusPath').textContent = String(top.file_path).replace(/\\/g, '/');
-    const why = top.reasons && top.reasons[0] ? ` · ${top.reasons[0].label} in the top ${Math.max(1, Math.round((1 - top.reasons[0].percentile) * 100))}%` : '';
+    const r = top.reasons && top.reasons[0];
+    const why = r ? ` · ${r.label} in the top ${Math.max(1, Math.round((1 - r.percentile) * 100))}%` : '';
     document.getElementById('focusMeta').textContent = `Risk ${top.risk_score.toFixed(2)} · ${bandName(top.risk_score)}${why}`;
   }
-  setTimeout(() => {
-    state = 'done';
-    scanStatus.hidden = true;
-    intro.classList.remove('scanning');
-    intro.classList.add('done');
-    document.body.classList.remove('locked');
-    scrollHint.hidden = false;
-    skip.hidden = false;
-    if (lenis) lenis.resize();
-    readProgress();
-  }, reduce ? 0 : 2400);
+  scanLog.classList.add('out');
+  focusCard.classList.add('in');
+  state = 'zooming';
+  zoomStart = performance.now();
+  onZoom(files.filter(f => f.risk_score >= 0.5).length);
+  setTimeout(() => showResults(true), reduce ? 0 : ZOOM_MS + 1000);
 });
-
-skip.addEventListener('click', () => lenis ? lenis.scrollTo(app) : app.scrollIntoView());
 
 addEventListener('scroll', () => {
-  readProgress();
-  toTop.classList.toggle('show', !document.body.classList.contains('locked') && scrollY > app.offsetTop + 600);
+  toTop.classList.toggle('show', !document.body.classList.contains('locked') && scrollY > 600);
 }, { passive: true });
 toTop.addEventListener('click', () => {
-  if (lenis) lenis.scrollTo(app, { duration: 0.9, easing: (x) => 1 - Math.pow(1 - x, 4) });
-  else app.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' });
+  if (lenis) lenis.scrollTo(0, { duration: 0.9, easing: (x) => 1 - Math.pow(1 - x, 4) });
+  else scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
 });
-
-function tick(now) {
-  requestAnimationFrame(tick);
-  let target = 0;
-  if (state === 'scanning') {
-    const base = stepIndex / STEPS, next = (stepIndex + 1) / STEPS;
-    target = base + (next - base) * 0.85 * (1 - Math.exp(-(now - stepAt) / 15000));
-  } else if (state === 'revealing' || state === 'done' || state === 'skipped') target = 1;
-  scanShown += (target - scanShown) * (reduce ? 1 : 0.05);
-  scanBar.style.width = `${(scanShown * 100).toFixed(1)}%`;
-  shown += (progress - shown) * (reduce ? 1 : 0.08);
-  if (state === 'done') {
-    scrollHint.style.opacity = 1 - smooth(0.02, 0.1, shown);
-    focusCard.style.opacity = smooth(0.35, 0.5, shown) * (1 - smooth(0.82, 0.92, shown));
-  }
-}
-requestAnimationFrame(tick);
 
 const [LenisMod, THREE] = reduce ? [null, null] : (await Promise.allSettled([
   import('https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.mjs'),
@@ -1511,7 +1556,7 @@ if (!THREE) {
   scene.fog = new THREE.Fog(0x010102, 45, 120);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
 
-  const N = small ? 12 : 18, gap = 2.2, half = (N - 1) * gap / 2;
+  const N = small ? 12 : 18, gap = 2.2, half = (N - 1) * gap / 2, span = 2 * half + 6;
   let seed = 1 + Math.floor(Math.random() * 2147483645);
   const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const geo = new THREE.BoxGeometry(1.5, 1, 1.5);
@@ -1526,11 +1571,10 @@ if (!THREE) {
       const h = 0.4 + Math.pow(rand(), 2.2) * 11 * clamp(centre, 0.15, 1);
       m.compose(p.set(x, 0, z), q, sc.set(1, h, 1));
       city.setMatrixAt(towers.length, m);
-      towers.push({ x, z, h, risky: false });
+      towers.push({ x, z, h, risky: h > 3.5 && rand() < 0.22, seen: false });
     }
   }
   const base = new THREE.Color(0x3a3e4a), scanned = new THREE.Color(0x30356a), red = new THREE.Color(0xeb5757), tmp = new THREE.Color();
-  towers.forEach((_, k) => city.setColorAt(k, base));
   scene.add(city);
 
   scene.add(new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b));
@@ -1586,7 +1630,14 @@ if (!THREE) {
   const signTex = new THREE.CanvasTexture(signCanvas);
   signTex.colorSpace = THREE.SRGBColorSpace;
   const signMat = new THREE.SpriteMaterial({ map: signTex, transparent: true, fog: false });
-  let signs = [];
+  const signs = [];
+  const addSign = (tw) => {
+    const sg = { tw, k: towers.indexOf(tw), sprite: new THREE.Sprite(signMat), shownAt: -1 };
+    sg.sprite.visible = false;
+    scene.add(sg.sprite);
+    signs.push(sg);
+  };
+  towers.filter(tw => tw.risky).forEach(addSign);
 
   const towerAt = (x, z) => {
     const i = Math.round((x + half) / gap), j = Math.round((z + half) / gap);
@@ -1629,7 +1680,7 @@ if (!THREE) {
       }
     });
     if (!choices.length) {
-      const tw = pool[0] || towers[0];
+      const tw = [...pool].sort((a, b) => b.h - a.h)[0] || towers[0];
       return { tw, ang: Math.atan2(from.z - tw.z, from.x - tw.x), lift: 6 };
     }
     const easy = choices.filter(c => c.cost <= 1);
@@ -1637,15 +1688,16 @@ if (!THREE) {
     return { ...list[Math.floor(Math.random() * list.length)], lift: 0 };
   };
 
-  assignFiles = (files) => {
-    towers.forEach(tw => { tw.risky = false; });
-    const tall = [...towers].sort((a, b) => b.h - a.h);
-    pick = pickTarget(tall.slice(0, 25));
-    const rest = tall.slice(0, Math.max(60, files.length + 10)).filter(t => t !== pick.tw).sort(() => Math.random() - 0.5);
-    [pick.tw, ...rest].forEach((tw, i) => { if (files[i]) tw.risky = files[i].risk_score >= 0.5; });
-    signs.forEach(sg => scene.remove(sg.sprite));
-    signs = towers.map((tw, k) => tw.risky ? { tw, k, sprite: new THREE.Sprite(signMat), shownAt: -1 } : null).filter(Boolean);
-    signs.forEach(sg => { sg.sprite.visible = false; scene.add(sg.sprite); });
+  onZoom = (highRisk) => {
+    towers.forEach(tw => { tw.seen = true; });
+    const reds = towers.filter(tw => tw.risky);
+    pick = pickTarget(reds.length ? reds : [...towers].sort((a, b) => b.h - a.h).slice(0, 25));
+    if (!pick.tw.risky) { pick.tw.risky = true; addSign(pick.tw); }
+    reds.filter(tw => tw !== pick.tw).sort(() => Math.random() - 0.5).slice(Math.max(0, highRisk - 1)).forEach(tw => { tw.risky = false; });
+  };
+  onReset = () => {
+    towers.forEach(tw => { tw.seen = false; });
+    pick = null;
   };
 
   const centre = new THREE.Vector3(0, 2, 0), look = new THREE.Vector3(), orbit = new THREE.Vector3(), close = new THREE.Vector3(), aim = new THREE.Vector3();
@@ -1658,41 +1710,41 @@ if (!THREE) {
   addEventListener('resize', resize);
   resize();
 
-  let visible = true;
-  new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(intro);
-
   let alarm = 0, last = performance.now();
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min((now - last) / 1000, 0.1);
     last = now;
-    if (!visible) return;
     const t = now / 1000;
-    if (state === 'idle' || state === 'scanning') orbitA += dt * (state === 'scanning' ? 0.06 : 0.03);
-    const revealP = state === 'revealing' ? clamp((now - revealStart) / 1800, 0, 1) : state === 'done' ? 1 : 0;
-    const span = 2 * half + 6;
-    const scanX = -half - 3 + scanShown * span;
-    const revealX = -half - 3 + revealP * span;
-    beam.visible = (state === 'scanning' && scanShown > 0.001) || state === 'revealing';
-    beam.position.x = state === 'revealing' ? revealX : scanX;
+    if (state !== 'zooming' && !(state === 'done' && pick)) orbitA += dt * 0.04;
+
+    let beamX = null;
+    if (state === 'scanning') {
+      beamX = -half - 3 + ((now - scanStart) % SWEEP_MS) / SWEEP_MS * span;
+      towers.forEach(tw => { if (tw.x <= beamX) tw.seen = true; });
+    }
+    beam.visible = beamX !== null;
+    if (beamX !== null) beam.position.x = beamX;
+
     let reds = 0;
     towers.forEach((tw, k) => {
-      if (state === 'idle') tmp.copy(base);
-      else if (state === 'scanning') tmp.copy(tw.x <= scanX ? scanned : base);
-      else if (tw.risky && tw.x <= revealX) { reds++; tmp.copy(red).multiplyScalar(0.7 + 0.3 * Math.sin(t * 4 + k)); }
+      if (!tw.seen) tmp.copy(base);
+      else if (tw.risky) { reds++; tmp.copy(red).multiplyScalar(0.7 + 0.3 * Math.sin(t * 4 + k)); }
       else tmp.copy(scanned);
       city.setColorAt(k, tmp);
     });
     city.instanceColor.needsUpdate = true;
 
-    const d = state === 'done' && pick ? smooth(0.08, 0.7, shown) : 0;
-    alarm += ((reds ? 1 : 0) * (1 - smooth(0.75, 0.95, shown)) - alarm) * 0.08;
+    const d = state === 'zooming' ? smooth(0, 1, (now - zoomStart) / ZOOM_MS) : state === 'done' && pick ? 1 : 0;
+    if (state === 'done' && pick) pick.ang += dt * 0.04;
+    alarm += ((reds ? (state === 'done' ? 0.4 : 1) : 0) - alarm) * 0.05;
     siren.rotation.y = t * 1.4;
     coneMat.opacity = 0.11 * alarm;
     spots.forEach(sp => { sp.intensity = 6 * alarm; });
     lamp.scale.setScalar(1 + 0.25 * alarm * Math.abs(Math.sin(t * 6)));
+
     signs.forEach(sg => {
-      const on = revealP > 0 && sg.tw.x <= revealX;
+      const on = sg.tw.seen && sg.tw.risky;
       if (on && sg.shownAt < 0) sg.shownAt = t;
       if (!on) sg.shownAt = -1;
       sg.sprite.visible = on;
@@ -1714,7 +1766,6 @@ if (!THREE) {
     look.lerpVectors(centre, aim, d);
     camera.lookAt(look);
     glow.intensity = pick && reds ? 30 * d + 4 : 0;
-    canvas.style.opacity = state === 'done' ? 1 - 0.85 * smooth(0.75, 0.95, shown) : 1;
     renderer.render(scene, camera);
   }
   requestAnimationFrame(frame);

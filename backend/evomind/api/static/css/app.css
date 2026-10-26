@@ -394,8 +394,7 @@ body:not(.locked) .sound-toggle { display: none; }
 #fig, #rush, #trail { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #rush, #trail { pointer-events: none; overflow: visible; }
 .front.diving #fig { transform-origin: var(--hx) var(--hy); transform: scale(7); opacity: 0; transition: transform 1600ms cubic-bezier(0.55, 0, 0.85, 0.35), opacity 600ms ease 1000ms; }
-.front-ui { position: absolute; inset: 0; pointer-events: none; transition: opacity 300ms ease, transform 300ms ease; }
-.front-ui > * { pointer-events: auto; }
+.front-ui { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--f-soft) transparent; transition: opacity 300ms ease, transform 300ms ease; }
 .front.diving .front-ui, .front.diving #trail { opacity: 0; transform: scale(0.97); pointer-events: none; transition: opacity 300ms ease, transform 300ms ease; }
 .front-copy { position: absolute; left: 7vw; top: 12vh; width: min(620px, 46vw); }
 .front-title { margin: 0; font: 400 clamp(44px, 5.1vw, 82px)/1.02 "Permanent Marker", cursive; letter-spacing: 0.01em; transform: rotate(-1.5deg); transform-origin: left; text-wrap: balance; }
@@ -411,13 +410,16 @@ body:not(.locked) .sound-toggle { display: none; }
 .prompt { color: var(--f-soft); font: 400 15px var(--mono); white-space: nowrap; }
 .line input { flex: 1; min-width: 0; padding: 0; border: 0; outline: 0; background: none; color: var(--f-ink); font: 500 16px var(--mono); caret-color: var(--f-red); }
 .line input::placeholder { color: var(--f-ghost); }
-.line .strike { display: none; position: absolute; left: 165px; right: 6px; top: 1px; height: 22px; overflow: visible; pointer-events: none; }
+.line .strike { display: none; position: absolute; left: 165px; width: calc(100% - 171px); top: 1px; height: 22px; overflow: visible; pointer-events: none; }
 .line .strike path { fill: none; stroke: var(--f-red); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 260; stroke-dashoffset: 260; }
 .line.struck .strike { display: block; }
 .line.struck .strike path { animation: ink-draw 420ms ease forwards; }
 .line.struck input { color: var(--f-soft); }
 @keyframes ink-draw { to { stroke-dashoffset: 0; } }
 .intro-error { margin: 10px 0 0; color: var(--f-red); font: 700 22px/1.15 Caveat, cursive; transform: rotate(-1deg); }
+.intro-error .err-more { padding: 0; border: 0; background: none; color: var(--f-ink); font: inherit; text-decoration: underline wavy var(--f-red); text-underline-offset: 4px; cursor: pointer; }
+.intro-error .err-rest { display: block; max-height: 8.5em; margin-top: 6px; overflow-x: hidden; overflow-y: auto; overflow-wrap: anywhere; color: var(--f-soft); font-size: 19px; line-height: 1.2; scrollbar-width: thin; }
+.intro-error .err-rest[hidden] { display: none; }
 .bubble-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 18px; }
 .tries { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; color: var(--f-soft); font: 500 21px/1.2 Caveat, cursive; }
 .tries button { position: relative; padding: 2px 4px; border: 0; background: none; color: var(--f-ink); font: inherit; cursor: pointer; }
@@ -445,7 +447,7 @@ body:not(.locked) .sound-toggle { display: none; }
   .front-sub { display: none; }
   .bubble { left: 12px; right: 12px; top: auto; bottom: 14px; width: auto; padding: 26px 26px 20px; }
   .prompt { display: none; }
-  .line .strike { left: 0; }
+  .line .strike { left: 0; width: 100%; }
   .bubble-row { flex-wrap: wrap; }
   .hero-options { left: 0; right: 0; top: auto; bottom: calc(100% + 30px); width: auto; transform: rotate(0.6deg); }
 }

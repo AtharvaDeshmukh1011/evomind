@@ -1,6 +1,6 @@
 import { reduce, clamp, smooth, flags } from './shared.js?v=1';
 import { play, loop } from './sound.js?v=2';
-import { dive, restore } from './front.js?v=3';
+import { dive, restore } from './front.js?v=4';
 const app = document.getElementById('app');
 const canvas = document.getElementById('city');
 const hero = document.getElementById('hero');

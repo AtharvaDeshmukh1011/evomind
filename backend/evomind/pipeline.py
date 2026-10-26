@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -19,6 +21,7 @@ from evomind.ingestion.repo_source import local_repo_path
 from evomind.ingestion.tree_snapshot import commit_at_or_before, commit_date_range, read_files_at_commit
 from evomind.labeling.llm_szz import AssessmentStats, refine_labels_with_llm_szz
 from evomind.labeling.szz import refine_labels_with_szz
+from evomind.metrics.code_metrics import SUPPORTED_EXTENSIONS
 from evomind.ml.explain import explain_risk
 from evomind.ml.train import FEATURE_COLUMNS, TrainingReport, train_and_evaluate
 from evomind.ml.trend import compute_risk_trends, trend_delta, trend_times
@@ -42,21 +45,68 @@ class PipelineResult:
     history_end: str | None = None
 
 
-def _no_analysable_files_message(repo: str, mined, cutoff: datetime) -> str:
+UNSUPPORTED_LANGUAGES = {
+    ".ex": "Elixir", ".exs": "Elixir", ".hs": "Haskell", ".lhs": "Haskell", ".clj": "Clojure",
+    ".cljs": "ClojureScript", ".ml": "OCaml", ".mli": "OCaml", ".fs": "F#", ".fsx": "F#",
+    ".jl": "Julia", ".elm": "Elm", ".nim": "Nim", ".cr": "Crystal", ".hx": "Haxe",
+    ".purs": "PureScript", ".rkt": "Racket", ".scm": "Scheme", ".lisp": "Lisp", ".el": "Emacs Lisp",
+    ".coffee": "CoffeeScript", ".groovy": "Groovy", ".ps1": "PowerShell", ".sh": "shell script",
+    ".vb": "Visual Basic", ".pas": "Pascal", ".asm": "assembly",
+}
+DOC_KINDS = {
+    ".md": "Markdown", ".markdown": "Markdown", ".rst": "reStructuredText", ".txt": "plain text",
+    ".adoc": "AsciiDoc", ".html": "HTML", ".htm": "HTML", ".css": "CSS", ".json": "JSON",
+    ".yml": "YAML", ".yaml": "YAML", ".toml": "TOML", ".xml": "XML", ".csv": "CSV",
+    ".ipynb": "notebook", ".svg": "image", ".png": "image", ".jpg": "image", ".jpeg": "image",
+    ".gif": "image", ".pdf": "PDF", "": "extension-less",
+}
+
+
+def _repo_profile(path) -> str | None:
+    try:
+        listing = subprocess.run(
+            ["git", "-C", str(path), "ls-files"], capture_output=True, text=True, timeout=60, check=True
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    suffixes = [PurePosixPath(f).suffix.lower() for f in listing.splitlines() if f]
+    if not suffixes:
+        return None
+    supported = sum(1 for e in suffixes if e in SUPPORTED_EXTENSIONS)
+    languages = Counter(UNSUPPORTED_LANGUAGES[e] for e in suffixes if e in UNSUPPORTED_LANGUAGES)
+    if languages:
+        language, count = languages.most_common(1)[0]
+        if count >= 5 and count > supported:
+            return f"It is mostly {language}, which EvoMind can't measure yet."
+    docs = Counter(DOC_KINDS[e] for e in suffixes if e in DOC_KINDS)
+    if sum(docs.values()) >= 0.6 * len(suffixes):
+        kind, count = docs.most_common(1)[0]
+        share = round(100 * count / len(suffixes))
+        return (
+            f"It is mostly documentation and data, not source code ({share}% of its "
+            f"{len(suffixes)} files are {kind}), so there is nothing for EvoMind to measure."
+        )
+    return None
+
+
+def _no_analysable_files_message(repo: str, mined, cutoff: datetime, profile: str | None = None) -> str:
     found = sorted(
         {PurePosixPath(rec.file_path.replace("\\", "/")).suffix for rec in mined.records}
         - {""}
     )
+    languages = sorted({UNSUPPORTED_LANGUAGES[e] for e in found if e in UNSUPPORTED_LANGUAGES})
+    if profile:
+        reason = profile
+    elif languages:
+        reason = f"It is written in {', '.join(languages)}, which EvoMind can't measure yet."
+    else:
+        reason = "None of its files had code EvoMind can measure at the training cutoff."
     return (
-        f"No analysable files remain for '{repo}' at the "
-        f"{cutoff.date().isoformat()} cutoff. Mining produced "
-        f"{len(mined.records)} change records covering {len(found)} supported "
-        f"extension(s) ({', '.join(found) if found else 'none'}), but none of "
-        "those files existed at the cutoff with measurable code. This usually "
-        "means the repository is written in a language EvoMind cannot measure "
-        "— Elixir and Haskell, for example, are not supported. Supported "
-        "languages include Python, JavaScript/TypeScript, Java, Go, C/C++, C#, "
-        "Ruby, PHP, Rust, Kotlin, Swift and Dart."
+        f"{reason} No analysable files remain for '{repo}': mining found "
+        f"{len(mined.records)} change records ({', '.join(found) if found else 'no file types'}), "
+        f"but none of those files existed at the {cutoff.date().isoformat()} cutoff with "
+        "measurable code. Supported languages include Python, JavaScript/TypeScript, Java, Go, "
+        "C/C++, C#, Ruby, PHP, Rust, Kotlin, Swift and Dart."
     )
 
 
@@ -81,7 +131,11 @@ def run_pipeline(
         mined = mine_repository(path, since=start)
 
         if not mined.records:
-            raise ValueError(f"No source code found in '{repo}'. It may contain only documentation or configuration, or code in a language EvoMind can't read.")
+            profile = _repo_profile(path)
+            raise ValueError(
+                f"{profile + ' ' if profile else ''}No source code found in '{repo}'. It may contain only "
+                "documentation or configuration, or code in a language EvoMind can't read."
+            )
 
         report_progress("Reading code at the training cutoff…")
         cutoff_commit = commit_at_or_before(path, cutoff)
@@ -98,7 +152,7 @@ def run_pipeline(
         train_df = build_feature_table(mined, cutoff=cutoff, snapshots=cutoff_snapshots, horizon_days=horizon_days)
 
         if train_df.empty:
-            raise ValueError(_no_analysable_files_message(repo, mined, cutoff))
+            raise ValueError(_no_analysable_files_message(repo, mined, cutoff, _repo_profile(path)))
 
         llm_szz_stats: AssessmentStats | None = None
         if use_llm_szz:

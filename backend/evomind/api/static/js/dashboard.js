@@ -284,12 +284,14 @@ function render(data) {
 
   const top = data.top_risk_files[0];
   document.getElementById('statTopRisk').textContent = top ? top.risk_score.toFixed(2) : '—';
+  document.getElementById('statTopRisk').style.color = !top ? '' : top.risk_score >= 0.66 ? 'var(--negative)' : top.risk_score >= 0.5 ? 'var(--warning)' : 'var(--positive)';
   document.getElementById('statTopRiskFile').textContent = top ? displayPath(top.file_path) : 'No files scored';
   document.getElementById('statTopRiskFile').title = top ? displayPath(top.file_path) : '';
 
   const withTrend = data.top_risk_files.filter(f => f.trend_delta !== null && f.trend_delta !== undefined);
   const rising = withTrend.filter(f => f.trend_delta > 0.02).length;
   document.getElementById('statRising').innerHTML = withTrend.length ? `${rising}<small>of ${withTrend.length}</small>` : '—';
+  document.getElementById('statRising').style.color = rising ? 'var(--warning)' : 'var(--positive)';
   document.getElementById('statRisingSub').textContent = withTrend.length ? 'up more than 0.02 since first scored' : 'Not enough history for a trend';
 
   document.getElementById('statPositiveRate').textContent = `${(data.training_positive_rate * 100).toFixed(1)}%`;
@@ -297,6 +299,7 @@ function render(data) {
 
   const best = data.evaluation.find(r => r.model_name === data.best_model) || data.evaluation[0];
   document.getElementById('statBestScore').textContent = best && Number.isFinite(best.roc_auc) ? best.roc_auc.toFixed(3) : 'n/a';
+  document.getElementById('statBestScore').style.color = !best || !Number.isFinite(best.roc_auc) ? '' : best.roc_auc >= 0.8 ? 'var(--positive)' : best.roc_auc >= 0.7 ? 'var(--accent-2)' : 'var(--warning)';
   document.getElementById('statBestModel').textContent = MODEL_LABEL[data.best_model] || data.best_model;
 
   const llmSzzNote = document.getElementById('llmSzzNote');

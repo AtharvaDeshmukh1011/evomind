@@ -28,6 +28,8 @@ jobs:
           git init -q -b main
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
+          git lfs install --local
+          git lfs track "*.bin" "*.mp3"
           git add -A
           git commit -q -m "Deploy ${GITHUB_SHA::7}"
           git push --force "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" main

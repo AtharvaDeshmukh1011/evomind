@@ -36,6 +36,8 @@ function showView() {
   sidebar.classList.remove('open');
 }
 window.addEventListener('hashchange', () => {
+  window.scrollTo(0, 0);
+  document.dispatchEvent(new CustomEvent('evo:view'));
   if (document.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) document.startViewTransition(showView);
   else showView();
 });

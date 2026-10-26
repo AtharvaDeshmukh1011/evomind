@@ -1,6 +1,6 @@
 import { reduce, clamp, smooth, flags } from './shared.js?v=1';
 import { play, loop } from './sound.js?v=2';
-import { dive, restore } from './front.js?v=4';
+import { dive, restore } from './front.js?v=5';
 const app = document.getElementById('app');
 const canvas = document.getElementById('city');
 const hero = document.getElementById('hero');
@@ -152,6 +152,7 @@ function onResult(detail) {
 addEventListener('scroll', () => {
   toTop.classList.toggle('show', !document.body.classList.contains('locked') && scrollY > 600);
 }, { passive: true });
+document.addEventListener('evo:view', () => { if (lenis) lenis.scrollTo(0, { immediate: true, force: true }); });
 toTop.addEventListener('click', () => {
   if (lenis) lenis.scrollTo(0, { duration: 0.9, easing: (x) => 1 - Math.pow(1 - x, 4) });
   else scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });

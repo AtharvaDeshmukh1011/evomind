@@ -108,6 +108,11 @@ button, a, input, label { touch-action: manipulation; -webkit-tap-highlight-colo
 .scope { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; max-width: 720px; }
 .scope .repo { flex: 1; min-width: 0; height: var(--control-height); padding: 0 10px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); font-family: var(--mono); font-size: var(--fs-path); }
 .scope .repo::placeholder { color: var(--faint); }
+.repo-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.repo-wrap .repo { padding-right: 30px; }
+.repo-wrap .clear-repo { position: absolute; right: 4px; top: 50%; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); font: 400 18px/1 var(--font); cursor: pointer; transform: translateY(-50%); }
+.repo-wrap .clear-repo:hover { color: var(--text); background: var(--raised); }
+.repo-wrap .repo:placeholder-shown ~ .clear-repo { display: none; }
 
 .sheet { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sheet); padding: 28px var(--pad) 48px; box-shadow: var(--edge); }
 
@@ -410,6 +415,9 @@ body:not(.locked) .sound-toggle { display: none; }
 .prompt { color: var(--f-soft); font: 400 15px var(--mono); white-space: nowrap; }
 .line input { flex: 1; min-width: 0; padding: 0; border: 0; outline: 0; background: none; color: var(--f-ink); font: 500 16px var(--mono); caret-color: var(--f-red); }
 .line input::placeholder { color: var(--f-ghost); }
+.line .clear-repo { flex: none; align-self: center; padding: 0 2px; border: 0; background: none; color: var(--f-soft); font: 700 28px/0.8 Caveat, cursive; cursor: pointer; transition: color 150ms ease, transform 150ms ease; }
+.line .clear-repo:hover, .line .clear-repo:focus-visible { color: var(--f-red); transform: rotate(10deg) scale(1.15); }
+.line input:placeholder-shown ~ .clear-repo { display: none; }
 .line .strike { display: none; position: absolute; left: 165px; width: calc(100% - 171px); top: 1px; height: 22px; overflow: visible; pointer-events: none; }
 .line .strike path { fill: none; stroke: var(--f-red); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 260; stroke-dashoffset: 260; }
 .line.struck .strike { display: block; }

@@ -108,6 +108,18 @@ input.addEventListener('input', () => {
   line.classList.remove('struck');
   errorEl.hidden = true;
 });
+input.addEventListener('focus', () => { if (line.classList.contains('struck')) input.select(); });
+input.addEventListener('mouseup', (e) => {
+  if (!line.classList.contains('struck')) return;
+  e.preventDefault();
+  input.select();
+});
+document.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', () => {
+  const el = document.getElementById(b.dataset.clear);
+  el.value = '';
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.focus();
+}));
 
 const ease = (k) => k * k * (3 - 2 * k);
 function startRush(x0, y0) {

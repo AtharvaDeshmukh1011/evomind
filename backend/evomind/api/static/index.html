@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Permanent+Marker&display=swap" />
-<link rel="stylesheet" href="/static/css/app.css?v=10" />
+<link rel="stylesheet" href="/static/css/app.css?v=11" />
 </head>
 <body class="locked">
 <a class="skip-link" href="#sheet">Skip to content</a>
@@ -44,6 +44,7 @@
           <span class="sr-only">Repository path or Git URL</span>
           <input id="introRepo" name="repo" type="text" spellcheck="false" autocomplete="off" placeholder="github.com/owner/repo" />
           <svg class="strike" viewBox="0 0 200 20" preserveAspectRatio="none" aria-hidden="true"><path d="M2 12 C 30 4, 50 18, 80 9 S 130 15, 160 8 S 190 12, 198 9" /></svg>
+          <button type="button" class="clear-repo" data-clear="introRepo" aria-label="Clear repository">×</button>
         </label>
         <p class="intro-error" id="introError" role="alert" hidden></p>
         <div class="bubble-row">
@@ -147,7 +148,10 @@
       </span>
       <form class="scope" id="analyzeForm">
         <label class="sr-only" for="repo">Repository path or Git URL</label>
-        <input class="repo" type="text" id="repo" name="repo" value="https://github.com/pallets/flask" spellcheck="false" autocomplete="off" placeholder="Repository path or Git URL" />
+        <span class="repo-wrap">
+          <input class="repo" type="text" id="repo" name="repo" value="https://github.com/pallets/flask" spellcheck="false" autocomplete="off" placeholder="Repository path or Git URL" />
+          <button type="button" class="clear-repo" data-clear="repo" aria-label="Clear repository">×</button>
+        </span>
         <button class="btn primary" type="submit" id="analyzeBtn"><span class="btn-label">Analyze</span></button>
       </form>
     </header>
@@ -375,7 +379,7 @@
   </div>
 </div>
 
-<script src="/static/js/dashboard.js?v=6"></script>
-<script type="module" src="/static/js/scene.js?v=11"></script>
+<script src="/static/js/dashboard.js?v=8"></script>
+<script type="module" src="/static/js/scene.js?v=13"></script>
 </body>
 </html>

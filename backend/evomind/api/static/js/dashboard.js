@@ -48,13 +48,20 @@ const themeLabel = document.getElementById('themeLabel');
 function effectiveTheme() {
   return document.documentElement.getAttribute('data-theme') || 'dark';
 }
+const frontTheme = document.getElementById('frontTheme');
 function syncThemeLabel() {
-  themeLabel.textContent = effectiveTheme() === 'dark' ? 'Light theme' : 'Dark theme';
+  const next = effectiveTheme() === 'dark' ? 'Light theme' : 'Dark theme';
+  themeLabel.textContent = next;
+  frontTheme.setAttribute('aria-label', `Switch to ${next.toLowerCase()}`);
 }
-document.getElementById('themeToggle').addEventListener('click', () => {
-  document.documentElement.setAttribute('data-theme', effectiveTheme() === 'dark' ? 'light' : 'dark');
+function flipTheme() {
+  const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('evomind-theme', next); } catch {}
   syncThemeLabel();
-});
+}
+document.getElementById('themeToggle').addEventListener('click', flipTheme);
+frontTheme.addEventListener('click', flipTheme);
 syncThemeLabel();
 
 const optionsBtn = document.getElementById('optionsBtn');

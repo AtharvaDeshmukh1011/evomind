@@ -214,6 +214,10 @@ form.addEventListener('submit', (e) => {
   const use_llm_szz = document.getElementById('useLlmSzz').checked;
   if (!repo) return;
 
+  if (currentView() !== 'risk') history.replaceState(null, '', '#risk');
+  showView();
+  window.scrollTo(0, 0);
+  document.dispatchEvent(new CustomEvent('evo:view'));
   setOptions(false);
   btn.disabled = true;
   btnLabel.textContent = 'Analyzing…';

@@ -178,7 +178,27 @@ export function restore(message) {
   front.hidden = false;
   if (fig) fig.start();
   if (message) {
-    errorEl.textContent = message;
+    const cut = message.search(/[.!?]\s/);
+    const head = document.createElement('span');
+    head.textContent = cut > 0 ? message.slice(0, cut + 1) : message;
+    errorEl.replaceChildren(head);
+    if (cut > 0) {
+      const rest = document.createElement('span');
+      rest.className = 'err-rest';
+      rest.hidden = true;
+      rest.textContent = message.slice(cut + 2);
+      const why = document.createElement('button');
+      why.type = 'button';
+      why.className = 'err-more';
+      why.textContent = 'why?';
+      why.setAttribute('aria-expanded', 'false');
+      why.addEventListener('click', () => {
+        rest.hidden = !rest.hidden;
+        why.textContent = rest.hidden ? 'why?' : 'hide';
+        why.setAttribute('aria-expanded', String(!rest.hidden));
+      });
+      errorEl.append(' ', why, rest);
+    }
     errorEl.hidden = false;
     line.classList.add('struck');
   }

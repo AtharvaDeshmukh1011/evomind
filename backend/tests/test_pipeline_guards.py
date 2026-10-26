@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from evomind.ingestion.git_miner import FileCommitRecord, MinedRepository
-from evomind.pipeline import run_pipeline
+from evomind.pipeline import _repo_profile, run_pipeline
 
 
 def _rec(path):
@@ -91,3 +91,36 @@ def test_refiners_return_an_empty_table_unchanged():
     assert refine_labels_with_szz(empty, [], "/tmp/x", cutoff, horizon).empty
     df, stats = refine_labels_with_llm_szz(empty, [], "/tmp/x", cutoff, horizon)
     assert df.empty and stats.assessed == 0 and stats.fallback == 0
+
+
+def _git_repo(tmp_path, names):
+    import subprocess
+    for name in names:
+        f = tmp_path / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    subprocess.run(["git", "-C", str(tmp_path), "add", "-A"], check=True)
+    return tmp_path
+
+
+def test_profile_names_a_documentation_repo(tmp_path):
+    repo = _git_repo(tmp_path, [f"books/list-{i}.md" for i in range(30)] + ["scripts/check.py"])
+    profile = _repo_profile(repo)
+    assert profile is not None
+    assert "documentation" in profile and "Markdown" in profile
+
+
+def test_profile_names_an_unsupported_language(tmp_path):
+    repo = _git_repo(tmp_path, [f"lib/mod_{i}.ex" for i in range(12)] + ["mix.exs", "README.md"])
+    profile = _repo_profile(repo)
+    assert profile is not None and "Elixir" in profile
+
+
+def test_profile_stays_quiet_for_a_normal_code_repo(tmp_path):
+    repo = _git_repo(tmp_path, [f"src/m{i}.py" for i in range(20)] + ["README.md"])
+    assert _repo_profile(repo) is None
+
+
+def test_profile_handles_a_missing_path():
+    assert _repo_profile("/definitely/not/a/repo") is None

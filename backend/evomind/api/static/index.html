@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Permanent+Marker&display=swap" />
-<link rel="stylesheet" href="/static/css/app.css?v=7" />
+<link rel="stylesheet" href="/static/css/app.css?v=10" />
 </head>
 <body class="locked">
 <a class="skip-link" href="#sheet">Skip to content</a>
@@ -31,7 +31,7 @@
   <div class="front" id="hero">
     <canvas id="fig" aria-hidden="true"></canvas>
     <svg id="trail" aria-hidden="true"></svg>
-    <div class="front-ui">
+    <div class="front-ui" data-lenis-prevent>
       <div class="front-copy">
       <h1 class="front-title">What's going on inside your <span class="under">code?<svg viewBox="0 0 100 20" preserveAspectRatio="none" aria-hidden="true"><path d="M2 12 C 22 4, 48 16, 70 8 S 96 10, 98 6" /></svg></span></h1>
       <p class="front-sub">EvoMind reads a repository's history and points at the files most likely to break next.</p>
@@ -376,6 +376,6 @@
 </div>
 
 <script src="/static/js/dashboard.js?v=6"></script>
-<script type="module" src="/static/js/scene.js?v=10"></script>
+<script type="module" src="/static/js/scene.js?v=11"></script>
 </body>
 </html>

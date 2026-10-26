@@ -155,7 +155,7 @@ if (!THREE) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x010102, 45, 120);
+  scene.fog = new THREE.Fog(0x0b0e17, 60, 170);
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
 
   const gap = 2.2;
@@ -179,16 +179,16 @@ if (!THREE) {
     }
   }
   let grid = towers.slice(), realCity = false, topTower = null, growStart = 0;
-  const base = new THREE.Color(0x3a3e4a), scanned = new THREE.Color(0x30356a), red = new THREE.Color(0xeb5757), tmp = new THREE.Color();
+  const base = new THREE.Color(0x4a5268), scanned = new THREE.Color(0x4a56b8), red = new THREE.Color(0xff5c5c), tmp = new THREE.Color();
   scene.add(city);
 
-  let gridHelper = new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b);
+  let gridHelper = new THREE.GridHelper(N * gap + 10, N + 5, 0x3a4260, 0x232a40);
   scene.add(gridHelper);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-  const sun = new THREE.DirectionalLight(0xc9cdff, 1.4);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+  const sun = new THREE.DirectionalLight(0xd7dbff, 1.9);
   sun.position.set(25, 45, 15);
   scene.add(sun);
-  const glow = new THREE.PointLight(0xeb5757, 0, 40);
+  const glow = new THREE.PointLight(0xff5c5c, 0, 48);
   scene.add(glow);
 
   const beam = new THREE.Group();
@@ -332,7 +332,7 @@ if (!THREE) {
     });
     scene.add(city);
     scene.remove(gridHelper);
-    gridHelper = new THREE.GridHelper(N * gap + 10, N + 5, 0x23252a, 0x16171b);
+    gridHelper = new THREE.GridHelper(N * gap + 10, N + 5, 0x3a4260, 0x232a40);
     scene.add(gridHelper);
     signs.forEach(sg => scene.remove(sg.sprite));
     signs.length = 0;

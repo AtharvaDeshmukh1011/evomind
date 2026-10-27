@@ -2,3 +2,6 @@
 .taste-skill/
 site/
 .vercel/
+brag-output/work/
+brag-output/*-v1.*
+brag-output/stills_part*.jpg

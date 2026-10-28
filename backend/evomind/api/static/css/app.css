@@ -401,13 +401,13 @@ body:not(.locked) .sound-toggle { display: none; }
 .front.diving #fig { transform-origin: var(--hx) var(--hy); transform: scale(7); opacity: 0; transition: transform 1600ms cubic-bezier(0.55, 0, 0.85, 0.35), opacity 600ms ease 1000ms; }
 .front-ui { position: absolute; inset: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--f-soft) transparent; transition: opacity 300ms ease, transform 300ms ease; }
 .front.diving .front-ui, .front.diving #trail { opacity: 0; transform: scale(0.97); pointer-events: none; transition: opacity 300ms ease, transform 300ms ease; }
-.front-copy { position: absolute; left: 7vw; top: 12vh; width: min(620px, 46vw); }
+.front-copy { position: absolute; left: 7vw; top: 12vh; width: min(46vw, max(620px, calc(clamp(44px, 5.1vw, 82px) * 8.6))); }
 .front-title { margin: 0; font: 400 clamp(44px, 5.1vw, 82px)/1.02 "Permanent Marker", cursive; letter-spacing: 0.01em; transform: rotate(-1.5deg); transform-origin: left; text-wrap: balance; }
 .front-title .under { position: relative; white-space: nowrap; }
 .front-title .under svg { position: absolute; left: -4%; bottom: -0.12em; width: 108%; height: 0.38em; overflow: visible; }
 .front-title .under path { fill: none; stroke: var(--f-red); stroke-width: 3; stroke-linecap: round; }
 .front-sub { max-width: 44ch; margin: 22px 0 0; color: var(--f-soft); font: 400 14px/22px var(--mono); }
-.bubble { position: absolute; left: 6vw; top: 49vh; width: min(600px, 46vw); padding: 34px 48px 30px; isolation: isolate; color: var(--f-ink); }
+.bubble { position: absolute; left: 6vw; top: max(49vh, calc(12vh + clamp(44px, 5.1vw, 82px) * 2.1 + 112px)); width: min(600px, 46vw); padding: 34px 48px 30px; isolation: isolate; color: var(--f-ink); }
 .bubble > svg.cloud { position: absolute; inset: -18px -22px; width: calc(100% + 44px); height: calc(100% + 36px); overflow: visible; z-index: -1; }
 .ask { margin: 0 0 14px; font: 700 26px/1 Caveat, cursive; transform: rotate(-1deg); }
 .line { position: relative; display: flex; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 2px dashed var(--f-line); }

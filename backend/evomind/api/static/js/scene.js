@@ -136,7 +136,7 @@ function onResult(detail) {
   const files = detail.top_risk_files || [];
   const top = files[0];
   if (top) {
-    document.getElementById('focusPath').textContent = String(top.file_path).replace(/\\/g, '/');
+    document.getElementById('focusPath').textContent = String(top.file_path).replace(/\\/g, '/').replace(/\//g, '/\u200b');
     const r = top.reasons && top.reasons[0];
     const why = r ? ` · ${r.label} in the top ${Math.max(1, Math.round((1 - r.percentile) * 100))}%` : '';
     document.getElementById('focusMeta').textContent = `Risk ${top.risk_score.toFixed(2)} · ${bandName(top.risk_score)}${why}`;

@@ -306,7 +306,7 @@ td.empty-cell { padding: 32px 0; text-align: center; color: var(--muted); }
 .scan-log li { display: flex; justify-content: space-between; gap: 24px; max-width: 440px; font-family: var(--mono); font-size: var(--fs-path); color: var(--muted); }
 .scan-log li span:last-child { color: var(--positive); }
 .scan-log.out, .focus-card.out { opacity: 0; transform: translateY(12px); pointer-events: none; }
-.focus-card { left: clamp(16px, 6vw, 96px); bottom: clamp(40px, 10vh, 110px); max-width: min(620px, calc(100vw - 32px)); opacity: 0; transform: translateY(12px); pointer-events: none; }
+.focus-card { left: clamp(16px, 6vw, 96px); bottom: clamp(40px, 10vh, 110px); max-width: min(620px, calc(100vw - 32px)); padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; opacity: 0; transform: translateY(12px); pointer-events: none; }
 .focus-card.in { opacity: 1; transform: none; }
 .focus-card.in.out { opacity: 0; transform: translateY(12px); }
 .focus-card .path { font: 700 clamp(20px, 2.4vw, 30px)/1.3 var(--mono); overflow-wrap: anywhere; }

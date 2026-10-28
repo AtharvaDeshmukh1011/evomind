@@ -1,6 +1,6 @@
 import { reduce, smooth } from './shared.js?v=1';
 import { play } from './sound.js?v=2';
-import { startFigure } from './figure.js?v=2';
+import { startFigure } from './figure.js?v=3';
 
 const front = document.getElementById('hero');
 const figCanvas = document.getElementById('fig');
@@ -132,6 +132,24 @@ function startRush(x0, y0) {
   const GL = ['?', '?', '?', '!', '‽', '#', '?', '¿', '%', '?!', '{ }', '?', '404', '?', '&', '?'];
   const parts = Array.from({ length: 72 }, (_, i) => ({ ch: GL[i % GL.length], a: Math.random() * 6.283, t0: Math.random() * 1500, rot: (Math.random() - 0.5) * 1.2, spin: (Math.random() - 0.5) * 2, red: Math.random() < 0.12 }));
   const INK = cssVar('--f-ink'), RED = cssVar('--f-red');
+  const SPRITE = 240, sprites = new Map();
+  const sprite = (ch, red) => {
+    const id = ch + (red ? '|r' : '|i');
+    if (sprites.has(id)) return sprites.get(id);
+    const c = document.createElement('canvas');
+    const g = c.getContext('2d');
+    g.font = `${SPRITE}px "Permanent Marker", cursive`;
+    c.width = Math.ceil(g.measureText(ch).width + SPRITE * 0.3);
+    c.height = Math.ceil(SPRITE * 1.5);
+    g.font = `${SPRITE}px "Permanent Marker", cursive`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = red ? RED : INK;
+    g.fillText(ch, c.width / 2, c.height / 2);
+    sprites.set(id, c);
+    return c;
+  };
+  parts.forEach(p => { p.img = sprite(p.ch, p.red); });
   const t0 = performance.now();
   const step = (now) => {
     const el = now - t0;
@@ -141,20 +159,17 @@ function startRush(x0, y0) {
     const k = ease(Math.min(1, el / 1500));
     const cx = x0 + (W / 2 - x0) * k, cy = y0 + (H / 2 - y0) * k;
     const fade = 1 - smooth(1900, 2500, el);
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
     parts.forEach(p => {
       const life = (el - p.t0) / 900;
       if (life < 0 || life > 1) return;
       const z = life * life;
       const d = (0.04 + z * 1.1) * Math.hypot(W, H) * 0.6;
+      const s = (14 + z * 320) / SPRITE;
       ctx.save();
       ctx.globalAlpha = fade * (life > 0.8 ? (1 - life) / 0.2 : 1);
       ctx.translate(cx + Math.cos(p.a) * d, cy + Math.sin(p.a) * d);
       ctx.rotate(p.rot + p.spin * life);
-      ctx.font = `${14 + z * 320}px "Permanent Marker", cursive`;
-      ctx.fillStyle = p.red ? RED : INK;
-      ctx.fillText(p.ch, 0, 0);
+      ctx.drawImage(p.img, -p.img.width * s / 2, -p.img.height * s / 2, p.img.width * s, p.img.height * s);
       ctx.restore();
     });
   };
@@ -174,12 +189,12 @@ export function dive(onReveal) {
   front.style.setProperty('--hy', `${fig.head.y}px`);
   front.classList.add('diving');
   play('whoosh', { gain: 0.5, rate: 0.85 });
+  fig.stop();
   startRush(fig.head.x, fig.head.y);
   return new Promise(res => {
     setTimeout(onReveal, 1250);
     setTimeout(() => {
       front.classList.add('gone');
-      fig.stop();
       res();
     }, 2500);
   });

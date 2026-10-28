@@ -299,7 +299,7 @@ td.empty-cell { padding: 32px 0; text-align: center; color: var(--muted); }
 #city.blurred { filter: blur(3px); }
 .stage::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 0, 0.45) 100%); }
 .scan-log, .focus-card { position: absolute; z-index: 2; transition: opacity 600ms ease, transform 600ms ease; }
-.scan-log { left: clamp(16px, 6vw, 96px); bottom: clamp(40px, 10vh, 110px); max-width: min(620px, calc(100vw - 32px)); }
+.scan-log { left: clamp(16px, 6vw, 96px); bottom: clamp(40px, 10vh, 110px); max-width: min(620px, calc(100vw - 32px)); padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
 .scan-log .kicker, .focus-card .kicker { margin-bottom: 8px; color: var(--negative); font: 500 13px var(--mono); }
 .scan-log h2 { font: 400 clamp(30px, 3.4vw, 46px)/1.08 "Permanent Marker", cursive; transform: rotate(-1deg); transform-origin: left; }
 .scan-log ul { margin-top: 16px; display: grid; gap: 6px; }

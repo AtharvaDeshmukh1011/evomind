@@ -11,6 +11,7 @@ export async function startFigure(THREE, out, { place, still = false, colors, da
   const FONT = 9, CW = FONT * 0.6, CH = FONT * 1.08;
   const ctx = out.getContext('2d');
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+  renderer.debug.checkShaderErrors = false;
   renderer.setClearColor(0x000000, 0);
   renderer.localClippingEnabled = true;
   const target = new THREE.WebGLRenderTarget(2, 2);
@@ -39,12 +40,19 @@ export async function startFigure(THREE, out, { place, still = false, colors, da
   camera.lookAt(0, 2, 0);
 
   let cols = 0, rows = 0, W = 0, H = 0, buf = null;
+  const layer = document.createElement('canvas');
+  const lctx = layer.getContext('2d');
+  let needRender = true, lastYaw = NaN, lastPitch = NaN, bufVersion = 0, wordsVersion = 0, layerKey = '';
   function resize() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     W = out.clientWidth; H = out.clientHeight;
     if (!W || !H) return;
     out.width = W * dpr; out.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    layer.width = W * dpr; layer.height = H * dpr;
+    lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    needRender = true;
+    layerKey = '';
     cols = Math.floor(W / CW); rows = Math.floor(H / CH);
     target.setSize(cols, rows);
     buf = new Uint8Array(cols * rows * 4);
@@ -157,44 +165,56 @@ export async function startFigure(THREE, out, { place, still = false, colors, da
     yaw += (mx * 0.5 - yaw) * (still ? 1 : 0.08);
     pitch += (my * 0.12 - pitch) * (still ? 1 : 0.08);
     bust.rotation.set(pitch * 0.3, yaw * 0.25, 0);
-    renderer.setRenderTarget(target);
-    renderer.render(scene, camera);
-    renderer.setRenderTarget(null);
-    renderer.readRenderTargetPixels(target, 0, 0, cols, rows, buf);
+    if (needRender || Math.abs(yaw - lastYaw) > 1e-4 || Math.abs(pitch - lastPitch) > 1e-4) {
+      renderer.setRenderTarget(target);
+      renderer.render(scene, camera);
+      renderer.setRenderTarget(null);
+      renderer.readRenderTargetPixels(target, 0, 0, cols, rows, buf);
+      lastYaw = yaw;
+      lastPitch = pitch;
+      needRender = false;
+      bufVersion++;
+    }
     const at = (x, y) => ((rows - 1 - y) * cols + x) * 4;
     const has = (x, y) => buf[at(x, y) + 3] > 0;
-    for (let k = words.length - 1; k >= 0; k--) if (t > words[k].until) words.splice(k, 1);
+    for (let k = words.length - 1; k >= 0; k--) if (t > words[k].until) { words.splice(k, 1); wordsVersion++; }
     for (let tries = 0; tries < 6 && words.length < 7; tries++) {
       const text = ERR[Math.floor(rnd() * ERR.length)];
       const x = Math.floor(rnd() * (cols - text.length)), y = Math.floor(rnd() * rows);
       let ok = words.every(w => w.y !== y || x > w.x + w.text.length + 1 || x + text.length + 1 < w.x);
       for (let k = 0; k < text.length && ok; k++) ok = has(x + k, y);
-      if (ok) words.push({ x, y, text, until: t + 900 + rnd() * 2400 });
+      if (ok) { words.push({ x, y, text, until: t + 900 + rnd() * 2400 }); wordsVersion++; }
+    }
+    const k8 = Math.floor(t / 125);
+    const key = `${bufVersion}|${wordsVersion}|${k8}|${isDark}|${C.body}|${C.ink}|${C.red}`;
+    if (key !== layerKey) {
+      layerKey = key;
+      lctx.clearRect(0, 0, W, H);
+      lctx.textAlign = 'left';
+      lctx.textBaseline = 'top';
+      lctx.font = `500 ${FONT}px "JetBrains Mono", ui-monospace, monospace`;
+      const ink = [], qm = [];
+      const taken = new Set();
+      words.forEach(w => { for (let k = 0; k < w.text.length; k++) taken.add((w.x + k) + w.y * cols); });
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          const i = at(x, y);
+          if (!buf[i + 3] || taken.has(x + y * cols)) continue;
+          const lum = (buf[i] + buf[i + 1]) / 510;
+          const d = isDark ? Math.pow(lum, 1.25) : 1 - Math.pow(lum, 0.8) * 0.92;
+          const ch = RAMP[Math.max(1, Math.min(RAMP.length - 1, Math.round(d * (RAMP.length - 1) + (hash(x, y, k8) - 0.5) * 0.9)))];
+          (ch === '?' ? qm : ink).push(ch, x, y);
+        }
+      }
+      const draw = (arr, color) => { lctx.fillStyle = color; for (let k = 0; k < arr.length; k += 3) lctx.fillText(arr[k], arr[k + 1] * CW, arr[k + 2] * CH); };
+      draw(ink, C.body);
+      lctx.font = `700 ${FONT}px "JetBrains Mono", ui-monospace, monospace`;
+      draw(qm, C.ink);
+      lctx.fillStyle = C.red;
+      words.forEach(w => lctx.fillText(w.text, w.x * CW, w.y * CH));
     }
     ctx.clearRect(0, 0, W, H);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.font = `500 ${FONT}px "JetBrains Mono", ui-monospace, monospace`;
-    const k8 = Math.floor(t / 125);
-    const ink = [], qm = [];
-    const taken = new Set();
-    words.forEach(w => { for (let k = 0; k < w.text.length; k++) taken.add((w.x + k) + w.y * cols); });
-    for (let y = 0; y < rows; y++) {
-      for (let x = 0; x < cols; x++) {
-        const i = at(x, y);
-        if (!buf[i + 3] || taken.has(x + y * cols)) continue;
-        const lum = (buf[i] + buf[i + 1]) / 510;
-        const d = isDark ? Math.pow(lum, 1.25) : 1 - Math.pow(lum, 0.8) * 0.92;
-        const ch = RAMP[Math.max(1, Math.min(RAMP.length - 1, Math.round(d * (RAMP.length - 1) + (hash(x, y, k8) - 0.5) * 0.9)))];
-        (ch === '?' ? qm : ink).push(ch, x, y);
-      }
-    }
-    const draw = (arr, color) => { ctx.fillStyle = color; for (let k = 0; k < arr.length; k += 3) ctx.fillText(arr[k], arr[k + 1] * CW, arr[k + 2] * CH); };
-    draw(ink, C.body);
-    ctx.font = `700 ${FONT}px "JetBrains Mono", ui-monospace, monospace`;
-    draw(qm, C.ink);
-    ctx.fillStyle = C.red;
-    words.forEach(w => ctx.fillText(w.text, w.x * CW, w.y * CH));
+    ctx.drawImage(layer, 0, 0, W, H);
     drawCloud(t);
   }
 

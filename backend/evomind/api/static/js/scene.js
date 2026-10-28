@@ -1,6 +1,6 @@
 import { reduce, clamp, smooth, flags } from './shared.js?v=1';
 import { play, loop } from './sound.js?v=2';
-import { dive, restore } from './front.js?v=5';
+import { dive, restore } from './front.js?v=6';
 const app = document.getElementById('app');
 const canvas = document.getElementById('city');
 const hero = document.getElementById('hero');
@@ -142,11 +142,13 @@ function onResult(detail) {
     document.getElementById('focusMeta').textContent = `Risk ${top.risk_score.toFixed(2)} · ${bandName(top.risk_score)}${why}`;
   }
   scanLog.classList.add('out');
-  focusCard.classList.add('in');
+  setTimeout(() => focusCard.classList.add('in'), reduce ? 0 : 550);
   state = 'zooming';
   zoomStart = performance.now() + (buildCity && cityData ? GROW_MS : 0);
   onZoom(files.filter(f => f.risk_score >= 0.5).length);
-  setTimeout(() => showResults(true), reduce ? 0 : ZOOM_MS + 1000 + (buildCity && cityData ? GROW_MS : 0));
+  const until = reduce ? 0 : ZOOM_MS + 1000 + (buildCity && cityData ? GROW_MS : 0);
+  if (!reduce) setTimeout(() => focusCard.classList.add('out'), until - 650);
+  setTimeout(() => showResults(true), until);
 }
 
 addEventListener('scroll', () => {
@@ -175,6 +177,7 @@ if (!THREE) {
   await document.fonts.load('80px "Permanent Marker"').catch(() => {});
   const small = innerWidth < 700;
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.debug.checkShaderErrors = false;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 400);
@@ -526,6 +529,7 @@ if (!THREE) {
   }
   addEventListener('resize', resize);
   resize();
+  if (renderer.compileAsync) renderer.compileAsync(scene, camera).catch(() => {});
 
   let alarm = 0, last = performance.now(), lowRes = false;
   function frame(now) {

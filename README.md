@@ -158,7 +158,7 @@ docs/               project explainer
 
 ## Credits
 
-- SZZ: Śliwerski, Zimmermann and Zeller (2005). LLM4SZZ: Zhou et al. (2025), [arXiv:2504.01404](https://arxiv.org/abs/2504.01404).
+- SZZ: Śliwerski, Zimmermann and Zeller (2005). LLM4SZZ: Tang et al. (ISSTA 2025), [arXiv:2504.01404](https://arxiv.org/abs/2504.01404).
 - The head on the opening page is from "Infinite, 3D Head Scan" by Lee Perry-Smith (Infinite Realities), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), via the three.js examples.
 - Sound effects are CC0 recordings from [Freesound](https://freesound.org).
 

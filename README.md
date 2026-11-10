@@ -4,7 +4,11 @@
 
 EvoMind reads a Git repository's commit history, learns which files went on to need bug fixes, and ranks today's files by the chance that they will need one next. Each score comes with the reasons behind it, a trend over time, and a map of the import loops that tie the codebase together.
 
-[![EvoMind](brag-output/brag.jpg)](brag-output/brag.mp4)
+
+
+https://github.com/user-attachments/assets/cd87e0ca-d93b-4c7e-a738-8857d207b30d
+
+
 
 **Live demo:** [evomindai.vercel.app](https://evomindai.vercel.app) · mirror on [Hugging Face](https://huggingface.co/spaces/Deshmukh09/evomind) · [launch video](brag-output/brag.mp4)
 
